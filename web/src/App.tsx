@@ -6,8 +6,15 @@ import LoginScreen from "./components/LoginScreen";
 import { Profile, Movie } from "./types";
 
 export default function App() {
-  // Profiles state - empty on start, filled by DB fetch
-  const [profiles, setProfiles] = useState<Profile[]>([]);
+  // Profiles state - initialized from localStorage cache, updated by database fetch
+  const [profiles, setProfiles] = useState<Profile[]>(() => {
+    try {
+      const cached = localStorage.getItem("stream_profiles_list");
+      return cached ? JSON.parse(cached) : [];
+    } catch (e) {
+      return [];
+    }
+  });
   const [activeProfile, setActiveProfile] = useState<Profile | null>(null);
   const [activeMovie, setActiveMovie] = useState<Movie | null>(null);
   const [apiBaseUrl, setApiBaseUrl] = useState<string>("/api");
@@ -15,7 +22,16 @@ export default function App() {
   const [accessToken, setAccessToken] = useState<string | null>(() => localStorage.getItem("stream_access_token"));
   const [activeTab, setActiveTab] = useState<string>("home");
   const [selectedMovieForDetails, setSelectedMovieForDetails] = useState<Movie | null>(null);
-  const [allMovies, setAllMovies] = useState<Movie[]>([]);
+  
+  // Movies catalog state - initialized from localStorage cache, updated by database fetch
+  const [allMovies, setAllMovies] = useState<Movie[]>(() => {
+    try {
+      const cached = localStorage.getItem("stream_movies_catalog");
+      return cached ? JSON.parse(cached) : [];
+    } catch (e) {
+      return [];
+    }
+  });
 
   // Load profiles from backend database
   useEffect(() => {
@@ -26,6 +42,7 @@ export default function App() {
           const data = await res.json();
           if (Array.isArray(data)) {
             setProfiles(data);
+            localStorage.setItem("stream_profiles_list", JSON.stringify(data));
             
             // Sync active profile if one is selected
             const savedProfile = localStorage.getItem("stream_active_profile");
@@ -67,6 +84,7 @@ export default function App() {
           const data = await res.json();
           if (Array.isArray(data)) {
             setAllMovies(data);
+            localStorage.setItem("stream_movies_catalog", JSON.stringify(data));
           }
         }
       } catch (e) {
