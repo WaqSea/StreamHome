@@ -30,6 +30,9 @@ class Settings:
     # Automated Database Backup System
     BACKUP_ENABLED: bool = os.getenv("BACKUP_ENABLED", "False").lower() in ("true", "1", "yes")
 
+    # Automated Update System
+    AUTO_UPDATE_ENABLED: bool = os.getenv("AUTO_UPDATE_ENABLED", "False").lower() in ("true", "1", "yes")
+
     # Ingestion Notification Settings
     VIDEO_SENDER_API_URL: Optional[str] = os.getenv("VIDEO_SENDER_API_URL", None)
 
@@ -42,6 +45,7 @@ class Settings:
                     self.STORAGE_ENGINE = data.get("storage_engine", self.STORAGE_ENGINE)
                     self.RCLONE_REMOTE_PATH = data.get("rclone_remote_path", self.RCLONE_REMOTE_PATH)
                     self.BACKUP_ENABLED = data.get("backup_enabled", self.BACKUP_ENABLED)
+                    self.AUTO_UPDATE_ENABLED = data.get("auto_update_enabled", self.AUTO_UPDATE_ENABLED)
             except Exception as e:
                 print(f"Error loading settings.json: {e}")
 
@@ -52,7 +56,8 @@ class Settings:
                 json.dump({
                     "storage_engine": self.STORAGE_ENGINE,
                     "rclone_remote_path": self.RCLONE_REMOTE_PATH,
-                    "backup_enabled": self.BACKUP_ENABLED
+                    "backup_enabled": self.BACKUP_ENABLED,
+                    "auto_update_enabled": self.AUTO_UPDATE_ENABLED
                 }, f, indent=2, ensure_ascii=False)
         except Exception as e:
             print(f"Error saving settings.json: {e}")

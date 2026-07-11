@@ -6,9 +6,11 @@ from contextlib import asynccontextmanager
 from typing import List, Optional
 from datetime import datetime
 
+import time
 from fastapi import FastAPI, Depends, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.base import BaseHTTPMiddleware
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -17,10 +19,12 @@ from models import Movie, Episode, PlaybackSession, WatchlistItem, MovieResponse
 from config import settings
 from services.logger import logger
 from services.queue import queue_manager
+import services.state as state
 from routes.queue import router as queue_router
 from routes.auth import router as auth_router
 from routes.stream import router as stream_router
 from routes.backup import router as backup_router
+from routes.update import router as update_router
 
 # 💥 WINDOWS ASYNC SUBPROCESS FIX
 if sys.platform == 'win32':
@@ -126,6 +130,32 @@ async def lifespan(app: FastAPI):
 
     asyncio.create_task(daily_backup_worker())
 
+    # 🔄 AUTOMATIC UPDATE SCHEDULER
+    async def auto_update_worker():
+        await asyncio.sleep(45)  # Wait 45s after boot before first check
+        while True:
+            try:
+                if settings.AUTO_UPDATE_ENABLED:
+                    from services.update import check_for_github_updates, is_system_idle, pull_and_install_updates, self_restart_server
+                    if await check_for_github_updates():
+                        # Wait for idle state (poll every 5 minutes)
+                        while not await is_system_idle():
+                            logger.info("[Update Worker] Update is available, but system is currently in use. Retrying idle check in 5 minutes...")
+                            await asyncio.sleep(300)
+                            
+                        # Idle achieved: perform upgrade
+                        logger.info("[Update Worker] System is idle. Executing pull and update...")
+                        success = await pull_and_install_updates()
+                        if success:
+                            logger.info("[Update Worker] Update successfully applied. Restarting server...")
+                            self_restart_server()
+                            break # Exiting current process loop
+            except Exception as e:
+                logger.error(f"[Update Worker] Error in automatic update scheduler: {e}")
+            await asyncio.sleep(3600)  # Check every 1 hour
+
+    asyncio.create_task(auto_update_worker())
+
     logger.info("[Server] Lifespan: Startup completed (with fallback checks).")
     
     yield  # Sunucu bu noktada çalışmaya devam eder
@@ -137,10 +167,26 @@ async def lifespan(app: FastAPI):
         logger.error(f"[Lifespan Shutdown] Error stopping queue manager: {q_stop_err}")
     logger.info("[Server] Lifespan: Queue Manager stopped securely.")
 
+class ActivityTrackingMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        # Exclude update endpoints from activity tracking to allow status checks
+        if "/api/update" in request.url.path:
+            return await call_next(request)
+            
+        state.ACTIVE_HTTP_REQUESTS += 1
+        state.LAST_HTTP_ACTIVITY_TIMESTAMP = time.time()
+        try:
+            response = await call_next(request)
+            return response
+        finally:
+            state.ACTIVE_HTTP_REQUESTS = max(0, state.ACTIVE_HTTP_REQUESTS - 1)
+            state.LAST_HTTP_ACTIVITY_TIMESTAMP = time.time()
+
 # Initialize FastAPI application with modern lifespan
 app = FastAPI(title="StreamHome Media Server", version="1.0.0", lifespan=lifespan)
 
-# Setup CORS middleware
+# Setup CORS and activity tracking middlewares
+app.add_middleware(ActivityTrackingMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -149,11 +195,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Register the queue and ingestion routes router
+# Register routes
 app.include_router(queue_router)
 app.include_router(auth_router)
 app.include_router(stream_router)
 app.include_router(backup_router, prefix="/api/backup", tags=["backup"])
+app.include_router(update_router, prefix="/api/update", tags=["update"])
 
 # Ensure directories exist before mounting static files
 os.makedirs(settings.MEDIA_DIR, exist_ok=True)

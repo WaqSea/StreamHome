@@ -875,6 +875,7 @@ async def run_setup_wizard():
         "storage_mode": "",
         "rclone_path": "",
         "backup_enabled": None,  # True/False
+        "auto_update_enabled": None,  # True/False
     }
 
     # Dynamic render helper
@@ -956,8 +957,14 @@ async def run_setup_wizard():
             elif active_field == "backup_enabled":
                 print_centered("      > Enable Automated Backups (y/N): [ ", end="")
                 return
+
+            if state["auto_update_enabled"] is not None and active_field != "auto_update_enabled":
+                print_centered(f"      Enable Automated Updates (y/N): {'Y' if state['auto_update_enabled'] else 'N'}")
+            elif active_field == "auto_update_enabled":
+                print_centered("      > Enable Automated Updates (y/N): [ ", end="")
+                return
         elif active_step > 3:
-            print_centered(f"[green][✓] Step 3: Choose Storage & Backup Settings ({state['storage_mode']}, Backup: {'On' if state['backup_enabled'] else 'Off'})[/green]")
+            print_centered(f"[green][✓] Step 3: Choose Storage & Backup Settings ({state['storage_mode']}, Backup: {'On' if state['backup_enabled'] else 'Off'}, Updates: {'On' if state['auto_update_enabled'] else 'Off'})[/green]")
         else:
             print_centered("[dim][ ] Step 3: Choose Storage & Backup Settings[/dim]")
 
@@ -1193,6 +1200,23 @@ async def run_setup_wizard():
             settings.BACKUP_ENABLED = is_enabled
             break
 
+    # Enable automatic updates
+    while True:
+        draw_wizard_state(3, "auto_update_enabled")
+        confirm_update = get_inline_input()
+        if confirm_update == "ESC":
+            if confirm_abort():
+                return
+            continue
+        if not confirm_update:
+            confirm_update = "N"
+        if confirm_update.lower() in ["y", "yes", "n", "no"]:
+            is_enabled = confirm_update.lower() in ["y", "yes"]
+            state["auto_update_enabled"] = is_enabled
+            update_env_file("AUTO_UPDATE_ENABLED", str(is_enabled))
+            settings.AUTO_UPDATE_ENABLED = is_enabled
+            break
+
     settings.save_to_json()
 
     # Step 4: Finalize
@@ -1407,6 +1431,152 @@ async def manage_database_backups():
             print_centered("[dim]Press Enter to continue...[/dim]")
             get_text_input("", default_val="")
 
+async def manage_system_updates():
+    from services.update import (
+        check_for_github_updates,
+        is_git_clean,
+        get_active_branch,
+        pull_and_install_updates,
+        self_restart_server,
+        is_system_idle
+    )
+    
+    sub_options = [
+        "Check for GitHub Updates",
+        "Manually Trigger Pull & Apply Updates",
+        "Toggle Automated Updates",
+        "Back to Main Menu"
+    ]
+    sub_icons = ["🔍", "🔄", "⚙️", "❌"]
+    
+    while True:
+        choice = arrow_menu(sub_options, sub_icons, is_sub_menu=True)
+        
+        if choice == -1 or choice == 3:  # ESC or Back to Main Menu
+            return
+            
+        elif choice == 0:
+            # Check for GitHub Updates
+            clear_screen()
+            console.print(f"[bright_cyan]{'═' * console.width}[/bright_cyan]")
+            print_centered_block(LITTLEBANNER)
+            console.print()
+            print_centered("[bold white]🔍   CHECK FOR GITHUB UPDATES[/bold white]")
+            print_centered("─" * 68)
+            console.print()
+            
+            print_centered("Checking for updates on GitHub...")
+            try:
+                update_available = await check_for_github_updates()
+                git_clean = await is_git_clean()
+                active_branch = await get_active_branch()
+                system_idle = await is_system_idle()
+                
+                print_centered(f"Active Branch: [bold white]{active_branch}[/bold white]")
+                if update_available:
+                    print_centered("[bold yellow][!] An update is available on GitHub![/bold yellow]")
+                else:
+                    print_centered("[bold green][✓] StreamHome is already up-to-date.[/bold green]")
+                    
+                if not git_clean:
+                    print_centered("[bold bright_red][⚠️] Warning: Local uncommitted changes detected! Automated updates will be blocked.[/bold bright_red]")
+                else:
+                    print_centered("[green][✓] Working directory is clean. Updates can be safely applied.[/green]")
+                    
+                if system_idle:
+                    print_centered("[green][✓] System is currently idle.[/green]")
+                else:
+                    print_centered("[yellow][!] System is currently in use.[/yellow]")
+            except Exception as e:
+                print_centered(f"[bold bright_red][✗] Update check failed: {e}[/bold bright_red]")
+                
+            console.print()
+            print_centered("[dim]Press Enter to continue...[/dim]")
+            get_text_input("", default_val="")
+            
+        elif choice == 1:
+            # Manually Trigger Pull & Apply Updates
+            clear_screen()
+            console.print(f"[bright_cyan]{'═' * console.width}[/bright_cyan]")
+            print_centered_block(LITTLEBANNER)
+            console.print()
+            print_centered("[bold white]🔄   MANUAL UPDATE PULL & APPLY[/bold white]")
+            print_centered("─" * 68)
+            console.print()
+            
+            # 1. Verify working directory is clean
+            if not await is_git_clean():
+                print_centered("[bold bright_red][✗] Aborting: You have uncommitted changes in your workspace.[/bold bright_red]")
+                print_centered("Please commit or stash your changes before updating.")
+                console.print()
+                print_centered("[dim]Press Enter to continue...[/dim]")
+                get_text_input("", default_val="")
+                continue
+                
+            print_centered("Checking remote updates...")
+            try:
+                update_available = await check_for_github_updates()
+                if not update_available:
+                    print_centered("[bold green][✓] Already up-to-date. No updates to pull.[/bold green]")
+                    console.print()
+                    print_centered("[dim]Press Enter to continue...[/dim]")
+                    get_text_input("", default_val="")
+                    continue
+                    
+                # Confirm manual trigger
+                print_centered("[bold yellow]Are you sure you want to pull updates and restart the server?[/bold yellow]")
+                print_centered("[dim]Press ENTER to pull and restart, or ESC to cancel...[/dim]")
+                key = get_key()
+                if key == "ENTER":
+                    print_centered("Pulling updates...")
+                    success = await pull_and_install_updates()
+                    if success:
+                        print_centered("[bold green][✓] Updates successfully applied! Restarting server...[/bold green]")
+                        await asyncio.sleep(1.5)
+                        self_restart_server()
+                        return
+                    else:
+                        print_centered("[bold bright_red][✗] Failed to apply updates.[/bold bright_red]")
+                else:
+                    print_centered("[dim]Update pull cancelled.[/dim]")
+            except Exception as e:
+                print_centered(f"[bold bright_red][✗] Update process failed: {e}[/bold bright_red]")
+                
+            console.print()
+            print_centered("[dim]Press Enter to continue...[/dim]")
+            get_text_input("", default_val="")
+            
+        elif choice == 2:
+            # Toggle Automated Updates
+            clear_screen()
+            console.print(f"[bright_cyan]{'═' * console.width}[/bright_cyan]")
+            print_centered_block(LITTLEBANNER)
+            console.print()
+            print_centered("[bold white]⚙️   TOGGLE AUTOMATED UPDATES[/bold white]")
+            print_centered("─" * 68)
+            console.print()
+            
+            status_str = "[bold green]ENABLED[/bold green]" if settings.AUTO_UPDATE_ENABLED else "[bold red]DISABLED[/bold red]"
+            print_centered(f"Automated Update System is currently: {status_str}")
+            console.print()
+            
+            prompt = "Disable" if settings.AUTO_UPDATE_ENABLED else "Enable"
+            print_centered(f"Do you want to {prompt} automated updates? (y/N): ")
+            confirm = get_inline_input()
+            if confirm.lower() in ("y", "yes"):
+                new_state = not settings.AUTO_UPDATE_ENABLED
+                settings.AUTO_UPDATE_ENABLED = new_state
+                update_env_file("AUTO_UPDATE_ENABLED", str(new_state))
+                settings.save_to_json()
+                status_str = "[bold green]ENABLED[/bold green]" if new_state else "[bold red]DISABLED[/bold red]"
+                print_centered(f"[bold green][✓] Automated Update System has been {status_str}![/bold green]")
+            else:
+                print_centered("[dim]No changes made.[/dim]")
+                
+            console.print()
+            print_centered("[dim]Press Enter to continue...[/dim]")
+            get_text_input("", default_val="")
+
 async def main():
     await init_db()
     
@@ -1420,9 +1590,10 @@ async def main():
         "Monitor Active Download Queue & Workers",
         "Delete / Remove Media Asset from Server",
         "Database Backup & Cloud Sync Center",
+        "System Update & Maintenance Center",
         "Exit Control Center",
     ]
-    menu_icons = ["⚙️", "👤", "📊", "🗑️", "💾", "❌"]
+    menu_icons = ["⚙️", "👤", "📊", "🗑️", "💾", "🔄", "❌"]
     
     while True:
         choice = arrow_menu(menu_options, menu_icons, is_sub_menu=False)
@@ -1438,6 +1609,8 @@ async def main():
         elif choice == 4:
             await manage_database_backups()
         elif choice == 5:
+            await manage_system_updates()
+        elif choice == 6:
             clear_screen()
             console.print()
             console.print(

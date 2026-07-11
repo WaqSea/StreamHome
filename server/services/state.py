@@ -9,6 +9,10 @@ ACTIVE_DOWNLOAD_METRICS: Dict[str, Dict[str, Any]] = {}
 # task_id -> asyncio.subprocess.Process object reference
 ACTIVE_PROCESSES: Dict[str, asyncio.subprocess.Process] = {}
 
+# Active HTTP traffic metrics for update idle detection
+ACTIVE_HTTP_REQUESTS: int = 0
+LAST_HTTP_ACTIVITY_TIMESTAMP: float = 0.0
+
 def update_task_metrics(task_id: str, progress: float, speed: str = "0 KB/s", eta: str = "00:00:00"):
     ACTIVE_DOWNLOAD_METRICS[task_id] = {
         "progress": round(progress, 2),
