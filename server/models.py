@@ -199,7 +199,7 @@ class WatchlistItem(SQLModel, table=True):
 class ProfileResponse(APIModel):
     id: str
     name: str
-    avatar_color: str
+    avatar_color: Optional[str] = "from-blue-600 to-indigo-650"
     theme: Optional[str]
     pin_enabled: Optional[bool]
     pin: Optional[str]

@@ -24,7 +24,7 @@ export default function App() {
         const res = await fetch(`${apiBaseUrl}/profiles`);
         if (res.ok) {
           const data = await res.json();
-          if (Array.isArray(data) && data.length > 0) {
+          if (Array.isArray(data)) {
             setProfiles(data);
             
             // Sync active profile if one is selected
@@ -44,7 +44,7 @@ export default function App() {
       }
     };
     fetchProfiles();
-  }, [apiBaseUrl]);
+  }, [apiBaseUrl, accessToken]);
 
   // Load API base URL configuration on mount
   useEffect(() => {

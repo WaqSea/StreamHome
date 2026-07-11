@@ -541,7 +541,7 @@ async def get_series_episodes(tmdb_id: int):
 class ProfileSaveRequest(APIModel):
     id: str
     name: str
-    avatar_color: str
+    avatar_color: Optional[str] = "from-blue-600 to-indigo-650"
     theme: Optional[str] = "netflix"
     pin_enabled: Optional[bool] = False
     pin: Optional[str] = None
