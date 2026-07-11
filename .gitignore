@@ -39,6 +39,8 @@ server/database.db
 server/database.db-shm
 server/database.db-wal
 server/temp/
+temp/
+
 *.log
 .gemini/
 /C:/Users/deniz/.gemini/antigravity/
@@ -47,7 +49,8 @@ AGENTS.md
 
 #Unimportant project files
 banner.txt
-
+bin/
+server/bin/
 
 # IDEs, Editors, & OS Files
 .vscode/

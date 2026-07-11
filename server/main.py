@@ -20,6 +20,7 @@ from services.queue import queue_manager
 from routes.queue import router as queue_router
 from routes.auth import router as auth_router
 from routes.stream import router as stream_router
+from routes.backup import router as backup_router
 
 # 💥 WINDOWS ASYNC SUBPROCESS FIX
 if sys.platform == 'win32':
@@ -93,6 +94,38 @@ async def lifespan(app: FastAPI):
     except Exception as q_start_err:
         logger.error(f"[Lifespan Startup] Error starting queue manager: {q_start_err}")
 
+    # 💾 DAILY BACKUP & SYNC SCHEDULER
+    async def daily_backup_worker():
+        await asyncio.sleep(30)  # Wait 30s after boot before first check
+        while True:
+            try:
+                if settings.BACKUP_ENABLED:
+                    from services.backup import get_local_backups, is_database_idle, create_backup, prune_old_backups, sync_backups_to_cloud
+                    backups = get_local_backups()
+                    should_backup = True
+                    if backups:
+                        newest = backups[0]
+                        newest_time = datetime.fromisoformat(newest["timestamp"])
+                        elapsed = datetime.now() - newest_time
+                        if elapsed.total_seconds() < 24 * 60 * 60:
+                            should_backup = False
+                    
+                    if should_backup:
+                        if await is_database_idle():
+                            logger.info("[Backup Worker] Database is idle. Initiating daily database backup...")
+                            backup_path = await create_backup()
+                            prune_old_backups(keep_count=7)
+                            if settings.STORAGE_ENGINE == "CLOUD":
+                                await sync_backups_to_cloud()
+                            logger.info(f"[Backup Worker] Daily database backup successfully completed: {backup_path}")
+                        else:
+                            logger.info("[Backup Worker] Daily backup is due, but database is currently in use. Deferring check...")
+            except Exception as e:
+                logger.error(f"[Backup Worker] Error in daily backup scheduler: {e}")
+            await asyncio.sleep(3600)  # Check hourly
+
+    asyncio.create_task(daily_backup_worker())
+
     logger.info("[Server] Lifespan: Startup completed (with fallback checks).")
     
     yield  # Sunucu bu noktada çalışmaya devam eder
@@ -120,6 +153,7 @@ app.add_middleware(
 app.include_router(queue_router)
 app.include_router(auth_router)
 app.include_router(stream_router)
+app.include_router(backup_router, prefix="/api/backup", tags=["backup"])
 
 # Ensure directories exist before mounting static files
 os.makedirs(settings.MEDIA_DIR, exist_ok=True)

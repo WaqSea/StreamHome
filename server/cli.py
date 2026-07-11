@@ -874,6 +874,7 @@ async def run_setup_wizard():
         "tmdb_token": "",
         "storage_mode": "",
         "rclone_path": "",
+        "backup_enabled": None,  # True/False
     }
 
     # Dynamic render helper
@@ -934,9 +935,9 @@ async def run_setup_wizard():
 
         console.print()
 
-        # Step 3: Storage Settings
+        # Step 3: Storage & Backup Settings
         if active_step == 3:
-            print_centered("[bold blue][▶] Step 3: Choose Storage Settings[/bold blue]")
+            print_centered("[bold blue][▶] Step 3: Choose Storage & Backup Settings[/bold blue]")
             if state["storage_mode"] and active_field != "storage_mode":
                 print_centered(f"      Storage Engine Mode: {state['storage_mode']}")
             elif active_field == "storage_mode":
@@ -944,15 +945,21 @@ async def run_setup_wizard():
                 return
 
             if state["storage_mode"] == "CLOUD":
-                if state["rclone_path"]:
+                if state["rclone_path"] and active_field != "rclone_path":
                     print_centered(f"      Rclone Remote Path: {state['rclone_path']}")
                 elif active_field == "rclone_path":
                     print_centered("      > Rclone Remote Path: [ ", end="")
                     return
+
+            if state["backup_enabled"] is not None and active_field != "backup_enabled":
+                print_centered(f"      Enable Automated Backups (y/N): {'Y' if state['backup_enabled'] else 'N'}")
+            elif active_field == "backup_enabled":
+                print_centered("      > Enable Automated Backups (y/N): [ ", end="")
+                return
         elif active_step > 3:
-            print_centered(f"[green][✓] Step 3: Choose Storage Settings ({state['storage_mode']})[/green]")
+            print_centered(f"[green][✓] Step 3: Choose Storage & Backup Settings ({state['storage_mode']}, Backup: {'On' if state['backup_enabled'] else 'Off'})[/green]")
         else:
-            print_centered("[dim][ ] Step 3: Choose Storage Settings[/dim]")
+            print_centered("[dim][ ] Step 3: Choose Storage & Backup Settings[/dim]")
 
         console.print()
 
@@ -1169,6 +1176,23 @@ async def run_setup_wizard():
         update_env_file("STORAGE_ENGINE", "LOCAL")
         settings.STORAGE_ENGINE = "LOCAL"
     
+    # Enable backups
+    while True:
+        draw_wizard_state(3, "backup_enabled")
+        confirm_backup = get_inline_input()
+        if confirm_backup == "ESC":
+            if confirm_abort():
+                return
+            continue
+        if not confirm_backup:
+            confirm_backup = "N"
+        if confirm_backup.lower() in ["y", "yes", "n", "no"]:
+            is_enabled = confirm_backup.lower() in ["y", "yes"]
+            state["backup_enabled"] = is_enabled
+            update_env_file("BACKUP_ENABLED", str(is_enabled))
+            settings.BACKUP_ENABLED = is_enabled
+            break
+
     settings.save_to_json()
 
     # Step 4: Finalize
@@ -1196,6 +1220,193 @@ async def run_setup_wizard():
     print_centered("Press Enter to exit.")
     get_text_input("", default_val="")
 
+async def manage_database_backups():
+    from services.backup import (
+        create_backup,
+        prune_old_backups,
+        get_local_backups,
+        sync_backups_to_cloud,
+        restore_backup
+    )
+    
+    sub_options = [
+        "Create Database Backup & Sync to Cloud",
+        "List & Manage Local Backups",
+        "Restore Database from Backup",
+        "Delete Local Backup File",
+        "Back to Main Menu"
+    ]
+    sub_icons = ["✨", "📋", "↩️", "🗑️", "❌"]
+    
+    while True:
+        choice = arrow_menu(sub_options, sub_icons, is_sub_menu=True)
+        
+        if choice == -1 or choice == 4:  # ESC or Back to Main Menu
+            return
+            
+        elif choice == 0:
+            # Create Backup & Sync to Cloud
+            clear_screen()
+            console.print(f"[bright_cyan]{'═' * console.width}[/bright_cyan]")
+            print_centered_block(LITTLEBANNER)
+            console.print()
+            print_centered("[bold white]💾   CREATE DATABASE BACKUP[/bold white]")
+            print_centered("─" * 68)
+            console.print()
+            
+            print_centered("Creating secure database online backup...")
+            try:
+                backup_path = await create_backup()
+                prune_old_backups(keep_count=7)
+                print_centered(f"[bold green][✓] Backup created locally: {os.path.basename(backup_path)}[/bold green]")
+                
+                if settings.STORAGE_ENGINE == "CLOUD":
+                    print_centered("Synchronizing backups to the cloud...")
+                    sync_success = await sync_backups_to_cloud()
+                    if sync_success:
+                        print_centered("[bold green][✓] Cloud synchronization completed successfully![/bold green]")
+                    else:
+                        print_centered("[bold bright_red][✗] Cloud synchronization failed.[/bold bright_red]")
+            except Exception as e:
+                print_centered(f"[bold bright_red][✗] Backup failed: {e}[/bold bright_red]")
+                
+            console.print()
+            print_centered("[dim]Press Enter to continue...[/dim]")
+            get_text_input("", default_val="")
+            
+        elif choice == 1:
+            # List Local Backups
+            while True:
+                clear_screen()
+                console.print(f"[bright_cyan]{'═' * console.width}[/bright_cyan]")
+                print_centered_block(LITTLEBANNER)
+                console.print()
+                print_centered("[bold white]📋   LOCAL DATABASE BACKUPS[/bold white]")
+                print_centered("─" * 68)
+                console.print()
+                
+                backups = get_local_backups()
+                if not backups:
+                    print_centered("[dim]No database backups found inside server/backup/.[/dim]")
+                else:
+                    for idx, b in enumerate(backups):
+                        print_centered(f"[{idx+1}] {b['filename']}  ({b['formatted_size']})  -  {b['timestamp'][:19].replace('T', ' ')}")
+                
+                console.print()
+                print_centered("[dim]Press Enter to return...[/dim]")
+                k = get_key()
+                if k in ("ENTER", "ESC"):
+                    break
+                    
+        elif choice == 2:
+            # Restore Database from Backup
+            clear_screen()
+            console.print(f"[bright_cyan]{'═' * console.width}[/bright_cyan]")
+            print_centered_block(LITTLEBANNER)
+            console.print()
+            print_centered("[bold white]↩️   RESTORE DATABASE FROM BACKUP[/bold white]")
+            print_centered("─" * 68)
+            console.print()
+            
+            backups = get_local_backups()
+            if not backups:
+                print_centered("[dim]No database backups available to restore.[/dim]")
+                console.print()
+                print_centered("[dim]Press Enter to continue...[/dim]")
+                get_text_input("", default_val="")
+                continue
+                
+            print_centered("Select a backup to restore:")
+            options_list = [b["filename"] for b in backups] + ["Cancel Restore"]
+            icons_list = ["📄"] * len(backups) + ["❌"]
+            
+            sel = arrow_menu(options_list, icons_list, is_sub_menu=True)
+            if sel == -1 or sel == len(backups):
+                continue
+                
+            selected_backup = backups[sel]["filename"]
+            
+            # Double safety confirmation
+            clear_screen()
+            console.print(f"[bright_cyan]{'═' * console.width}[/bright_cyan]")
+            print_centered_block(LITTLEBANNER)
+            console.print()
+            print_centered("[bold bright_red]⚠️   WARNING: DATABASE OVERWRITE ACTION[/bold bright_red]")
+            print_centered("─" * 68)
+            console.print()
+            print_centered(f"You are about to restore: [bold white]{selected_backup}[/bold white]")
+            print_centered("This will OVERWRITE all current database records and streaming sessions!")
+            console.print()
+            
+            print_centered("[bold yellow]Are you sure? Press ENTER to restore, or ESC to cancel...[/bold yellow]")
+            key = get_key()
+            if key == "ENTER":
+                print_centered("Restoring database...")
+                try:
+                    success = await restore_backup(selected_backup)
+                    if success:
+                        print_centered("[bold green][✓] Database successfully restored![/bold green]")
+                    else:
+                        print_centered("[bold bright_red][✗] Database restore failed.[/bold bright_red]")
+                except Exception as e:
+                    print_centered(f"[bold bright_red][✗] Restore failed: {e}[/bold bright_red]")
+            else:
+                print_centered("[dim]Restore cancelled.[/dim]")
+                
+            console.print()
+            print_centered("[dim]Press Enter to continue...[/dim]")
+            get_text_input("", default_val="")
+            
+        elif choice == 3:
+            # Delete Backup File
+            clear_screen()
+            console.print(f"[bright_cyan]{'═' * console.width}[/bright_cyan]")
+            print_centered_block(LITTLEBANNER)
+            console.print()
+            print_centered("[bold white]🗑️   DELETE LOCAL BACKUP FILE[/bold white]")
+            print_centered("─" * 68)
+            console.print()
+            
+            backups = get_local_backups()
+            if not backups:
+                print_centered("[dim]No database backups available to delete.[/dim]")
+                console.print()
+                print_centered("[dim]Press Enter to continue...[/dim]")
+                get_text_input("", default_val="")
+                continue
+                
+            print_centered("Select a backup file to delete:")
+            options_list = [b["filename"] for b in backups] + ["Cancel Delete"]
+            icons_list = ["📄"] * len(backups) + ["❌"]
+            
+            sel = arrow_menu(options_list, icons_list, is_sub_menu=True)
+            if sel == -1 or sel == len(backups):
+                continue
+                
+            selected_backup = backups[sel]["filename"]
+            selected_path = backups[sel]["path"]
+            
+            clear_screen()
+            console.print(f"[bright_cyan]{'═' * console.width}[/bright_cyan]")
+            print_centered_block(LITTLEBANNER)
+            console.print()
+            print_centered(f"Are you sure you want to permanently delete local backup: [bold white]{selected_backup}[/bold white]?")
+            console.print()
+            print_centered("[bold yellow]Press ENTER to confirm delete, or ESC to cancel...[/bold yellow]")
+            key = get_key()
+            if key == "ENTER":
+                try:
+                    os.remove(selected_path)
+                    print_centered("[bold green][✓] Backup file successfully deleted.[/bold green]")
+                except Exception as e:
+                    print_centered(f"[bold bright_red][✗] Deletion failed: {e}[/bold bright_red]")
+            else:
+                print_centered("[dim]Deletion cancelled.[/dim]")
+                
+            console.print()
+            print_centered("[dim]Press Enter to continue...[/dim]")
+            get_text_input("", default_val="")
+
 async def main():
     await init_db()
     
@@ -1208,9 +1419,10 @@ async def main():
         "Account Management & 2FA Security Center",
         "Monitor Active Download Queue & Workers",
         "Delete / Remove Media Asset from Server",
+        "Database Backup & Cloud Sync Center",
         "Exit Control Center",
     ]
-    menu_icons = ["⚙️", "👤", "📊", "🗑️", "❌"]
+    menu_icons = ["⚙️", "👤", "📊", "🗑️", "💾", "❌"]
     
     while True:
         choice = arrow_menu(menu_options, menu_icons, is_sub_menu=False)
@@ -1224,6 +1436,8 @@ async def main():
         elif choice == 3:
             await remove_media_asset()
         elif choice == 4:
+            await manage_database_backups()
+        elif choice == 5:
             clear_screen()
             console.print()
             console.print(
