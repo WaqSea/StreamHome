@@ -1,0 +1,61 @@
+# Dependency directories
+node_modules/
+web/node_modules/
+
+# Build outputs
+dist/
+web/dist/
+build/
+
+# Python caching & byte-code
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+server/__pycache__/
+server/routes/__pycache__/
+server/services/__pycache__/
+
+# Environments and Secrets
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+server/.env
+web/.env
+server/media/
+server/settings.json
+
+# Virtual Environments
+venv/
+.venv/
+env/
+ENV/
+
+# SQLite databases, temporary downloads, & logs
+server/database.db
+server/database.db-shm
+server/database.db-wal
+server/temp/
+*.log
+.gemini/
+/C:/Users/deniz/.gemini/antigravity/
+memory-bank/
+AGENTS.md
+
+#Unimportant project files
+banner.txt
+
+
+# IDEs, Editors, & OS Files
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+Thumbs.db
+desktop.ini

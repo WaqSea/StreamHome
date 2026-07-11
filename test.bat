@@ -1,0 +1,1 @@
+python C:\Users\deniz\Desktop\.all\Projects\tests\test_ingest_stream.py

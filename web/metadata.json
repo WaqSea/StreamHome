@@ -1,0 +1,6 @@
+{
+  "name": "Video Streaming Platform",
+  "description": "A modern, self-hosted streaming frontend with profile selection, dashboard, and custom-styled HTML5 media player.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

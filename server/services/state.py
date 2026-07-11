@@ -1,0 +1,54 @@
+import asyncio
+from typing import Dict, Any
+
+# In-memory dictionary storing active download transient metrics:
+# task_id -> {"progress": float, "speed": str, "eta": str}
+ACTIVE_DOWNLOAD_METRICS: Dict[str, Dict[str, Any]] = {}
+
+# In-memory process registry tracking active FFmpeg subprocesses:
+# task_id -> asyncio.subprocess.Process object reference
+ACTIVE_PROCESSES: Dict[str, asyncio.subprocess.Process] = {}
+
+def update_task_metrics(task_id: str, progress: float, speed: str = "0 KB/s", eta: str = "00:00:00"):
+    ACTIVE_DOWNLOAD_METRICS[task_id] = {
+        "progress": round(progress, 2),
+        "speed": speed,
+        "eta": eta
+    }
+
+def get_task_metrics(task_id: str) -> Dict[str, Any]:
+    return ACTIVE_DOWNLOAD_METRICS.get(task_id, {"progress": 0.0, "speed": "0 KB/s", "eta": "00:00:00"})
+
+def remove_task_metrics(task_id: str):
+    ACTIVE_DOWNLOAD_METRICS.pop(task_id, None)
+
+def register_process(task_id: str, process: asyncio.subprocess.Process):
+    """Registers an active subprocess reference to prevent zombie processes on deletion."""
+    ACTIVE_PROCESSES[task_id] = process
+
+def unregister_process(task_id: str):
+    """Removes a finished or cancelled subprocess from the registry."""
+    ACTIVE_PROCESSES.pop(task_id, None)
+
+async def cancel_and_kill_process(task_id: str) -> bool:
+    """Explicitly terminates or kills a running OS process registered to a task."""
+    process = ACTIVE_PROCESSES.pop(task_id, None)
+    if not process:
+        return False
+        
+    try:
+        print(f"[Process Registry] Terminating active FFmpeg process for task: {task_id}")
+        process.terminate()
+        try:
+            # Give the process 2 seconds to clean up and exit gracefully
+            await asyncio.wait_for(process.wait(), timeout=2.0)
+            print(f"[Process Registry] Process for task {task_id} exited gracefully.")
+        except asyncio.TimeoutError:
+            print(f"[Process Registry] Process did not respond to SIGTERM. Killing task {task_id}...")
+            process.kill()
+            await process.wait()
+            print(f"[Process Registry] Process for task {task_id} killed successfully.")
+        return True
+    except Exception as e:
+        print(f"[Process Registry] Error trying to kill process for task {task_id}: {e}")
+        return False

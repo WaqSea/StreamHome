@@ -1,0 +1,560 @@
+import os
+import sys
+import warnings
+import asyncio
+from contextlib import asynccontextmanager
+from typing import List, Optional
+from datetime import datetime
+
+from fastapi import FastAPI, Depends, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from sqlmodel import select
+from sqlmodel.ext.asyncio.session import AsyncSession
+
+from db import init_db, engine
+from models import Movie, Episode, PlaybackSession, WatchlistItem, MovieResponse, PlaybackSessionResponse, DiscoverMovieResponse, EpisodeResponse, Profile, ProfileResponse, APIModel, DownloadTask
+from config import settings
+from services.logger import logger
+from services.queue import queue_manager
+from routes.queue import router as queue_router
+from routes.auth import router as auth_router
+from routes.stream import router as stream_router
+
+# 💥 WINDOWS ASYNC SUBPROCESS FIX
+if sys.platform == 'win32':
+    # Python 3.14'ün verdiği "Deprecated" uyarılarını terminali kirletmemesi için susturuyoruz
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", DeprecationWarning)
+        asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+
+# 🚀 MODERN FASTAPI LIFESPAN (Eski on_event yapısının yerine)
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Sunucu başlarken (Startup) yapılacaklar:
+    try:
+        await init_db()
+    except Exception as db_err:
+        logger.error(f"[Lifespan Startup] Database initialization failed (server continuing): {db_err}")
+    
+    # Check if TMDB credentials are set and show a warning if they are missing
+    try:
+        from services.tmdb import tmdb_client
+        if not tmdb_client.api_key and not tmdb_client.read_access_token:
+            logger.warning("TMDB_READ_ACCESS_TOKEN or TMDB_API_KEY is not configured in your .env file!")
+            logger.warning("All media catalogs and recovery syncs will use 'Captured Movie' placeholders.")
+            logger.warning("To fix: Configure the token in your .env or run: python cli.py")
+    except Exception as tmdb_err:
+        logger.error(f"[Lifespan Startup] TMDB client credentials verification failed: {tmdb_err}")
+        
+    # Clean up dangling tasks from previous run
+    try:
+        async with AsyncSession(engine) as db:
+            stmt = select(DownloadTask).where(DownloadTask.status.in_(["DOWNLOADING", "MERGING", "MOVING_CLOUD"]))
+            result = await db.exec(stmt)
+            dangling_tasks = result.all()
+            if dangling_tasks:
+                logger.info(f"[Server Startup] Found {len(dangling_tasks)} dangling tasks from previous execution. Marking them as FAILED...")
+                for task in dangling_tasks:
+                    task.status = "FAILED"
+                    task.error_message = "Interrupted by server shutdown/restart."
+                    db.add(task)
+                await db.commit()
+    except Exception as dangling_err:
+        logger.error(f"[Lifespan Startup] Error cleaning up dangling tasks: {dangling_err}")
+
+    # Seed default Admin profile if none exists
+    try:
+        async with AsyncSession(engine) as db:
+            stmt = select(Profile)
+            result = await db.exec(stmt)
+            if not result.first():
+                logger.info("[Database] Seeding default Admin profile...")
+                admin_profile = Profile(
+                    id="1",
+                    name="Admin",
+                    avatar_color="from-blue-600 to-indigo-600",
+                    theme="netflix",
+                    pin_enabled=False,
+                    pin=None
+                )
+                db.add(admin_profile)
+                await db.commit()
+    except Exception as seed_err:
+        logger.error(f"[Lifespan Startup] Error seeding default profile: {seed_err}")
+            
+    try:
+        await queue_manager.sync_media_from_disk()
+    except Exception as sync_err:
+        logger.error(f"[Lifespan Startup] Error syncing media from disk: {sync_err}")
+
+    try:
+        queue_manager.start()
+    except Exception as q_start_err:
+        logger.error(f"[Lifespan Startup] Error starting queue manager: {q_start_err}")
+
+    logger.info("[Server] Lifespan: Startup completed (with fallback checks).")
+    
+    yield  # Sunucu bu noktada çalışmaya devam eder
+    
+    # Sunucu kapanırken (Shutdown) yapılacaklar:
+    try:
+        queue_manager.stop()
+    except Exception as q_stop_err:
+        logger.error(f"[Lifespan Shutdown] Error stopping queue manager: {q_stop_err}")
+    logger.info("[Server] Lifespan: Queue Manager stopped securely.")
+
+# Initialize FastAPI application with modern lifespan
+app = FastAPI(title="StreamHome Media Server", version="1.0.0", lifespan=lifespan)
+
+# Setup CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Register the queue and ingestion routes router
+app.include_router(queue_router)
+app.include_router(auth_router)
+app.include_router(stream_router)
+
+# Ensure directories exist before mounting static files
+os.makedirs(settings.MEDIA_DIR, exist_ok=True)
+os.makedirs(os.path.join(settings.MEDIA_DIR, "Movies"), exist_ok=True)
+os.makedirs(os.path.join(settings.MEDIA_DIR, "Series"), exist_ok=True)
+
+# Mount media directory for static Range-Request playback
+app.mount("/media", StaticFiles(directory=settings.MEDIA_DIR), name="media")
+
+
+# ----------------- Movies Catalog API -----------------
+
+@app.get("/api/movies", response_model=List[MovieResponse])
+async def get_movies():
+    """Fetches all cataloged media assets with linked episode detail mappings."""
+    async with AsyncSession(engine) as db:
+        stmt = select(Movie)
+        result = await db.exec(stmt)
+        movies = result.all()
+        
+        results = []
+        for m in movies:
+            episodes = None
+            if m.type == "series":
+                ep_stmt = select(Episode).where(Episode.movie_id == m.id).order_by(Episode.season_number, Episode.episode_number)
+                ep_result = await db.exec(ep_stmt)
+                episodes = ep_result.all()
+            
+            results.append(MovieResponse.from_db(m, episodes))
+        
+        return results
+
+@app.get("/api/movies/featured", response_model=Optional[MovieResponse])
+async def get_featured_movie():
+    """Returns the featured or most recently cataloged movie asset."""
+    async with AsyncSession(engine) as db:
+        stmt = select(Movie).order_by(Movie.release_year.desc())
+        result = await db.exec(stmt)
+        movie = result.first()
+        
+        if not movie:
+            return None
+            
+        episodes = None
+        if movie.type == "series":
+            ep_stmt = select(Episode).where(Episode.movie_id == movie.id).order_by(Episode.season_number, Episode.episode_number)
+            ep_result = await db.exec(ep_stmt)
+            episodes = ep_result.all()
+            
+        return MovieResponse.from_db(movie, episodes)
+
+
+# ----------------- Playback Tracking & Pulse -----------------
+
+@app.get("/api/track/{profile_id}", response_model=List[PlaybackSessionResponse])
+async def get_playback_tracking(profile_id: str):
+    """Retrieves continue-watching tracking playback states for a profile."""
+    async with AsyncSession(engine) as db:
+        stmt = select(PlaybackSession).where(PlaybackSession.profile_id == profile_id)
+        result = await db.exec(stmt)
+        sessions = result.all()
+        return [
+            PlaybackSessionResponse(
+                movieId=s.movie_id,
+                profileId=s.profile_id,
+                timestamp=s.timestamp,
+                duration_watched=s.duration_watched,
+                completion_rate=s.completion_rate,
+                updatedAt=s.updated_at,
+                episodeId=s.episode_id,
+                is_finished=s.is_finished
+            )
+            for s in sessions
+        ]
+
+@app.post("/api/track")
+async def update_playback_tracking(request: Request):
+    """Receives 10-second playback tracker pulses from the VideoPlayer."""
+    from starlette.requests import ClientDisconnect
+    try:
+        body = await request.json()
+    except ClientDisconnect:
+        print("[Tracking] Client disconnected while sending tracking update.")
+        return {"status": "disconnected"}
+    
+    movie_id = body.get("movieId")
+    profile_id = body.get("profileId")
+    timestamp = body.get("timestamp")
+    duration_watched = body.get("duration_watched", 0)
+    completion_rate = body.get("completion_rate", 0.0)
+    episode_id = body.get("episodeId")
+    is_finished = body.get("is_finished", False)
+    
+    if not movie_id or not profile_id:
+        raise HTTPException(
+            status_code=400,
+            detail="Missing required parameters: movieId, profileId"
+        )
+        
+    async with AsyncSession(engine) as db:
+        filters = [
+            PlaybackSession.movie_id == movie_id,
+            PlaybackSession.profile_id == profile_id,
+        ]
+        if episode_id:
+            filters.append(PlaybackSession.episode_id == episode_id)
+        stmt = select(PlaybackSession).where(*filters)
+        result = await db.exec(stmt)
+        session = result.first()
+        
+        now_str = datetime.utcnow().isoformat()
+        if session:
+            session.timestamp = int(timestamp)
+            session.duration_watched = int(duration_watched)
+            session.completion_rate = float(completion_rate)
+            session.updated_at = now_str
+            session.episode_id = episode_id
+            session.is_finished = is_finished
+            db.add(session)
+        else:
+            session = PlaybackSession(
+                profile_id=profile_id,
+                movie_id=movie_id,
+                episode_id=episode_id,
+                timestamp=int(timestamp),
+                duration_watched=int(duration_watched),
+                completion_rate=float(completion_rate),
+                updated_at=now_str,
+                is_finished=is_finished
+            )
+            db.add(session)
+            
+        await db.commit()
+        
+    return {"status": "success", "updatedAt": now_str}
+
+# ----------------- Watchlist Management API -----------------
+
+from pydantic import BaseModel
+
+class WatchlistToggleRequest(BaseModel):
+    profile_id: str
+    movie_id: str
+
+@app.get("/api/watchlist/{profile_id}", response_model=List[str])
+async def get_watchlist(profile_id: str):
+    """Retrieves watchlist items for a profile."""
+    async with AsyncSession(engine) as db:
+        stmt = select(WatchlistItem).where(WatchlistItem.profile_id == profile_id)
+        result = await db.exec(stmt)
+        items = result.all()
+        # Sort items by created_at desc so latest items are shown first
+        items.sort(key=lambda x: x.created_at, reverse=True)
+        return [item.movie_id for item in items]
+
+@app.post("/api/watchlist/toggle")
+async def toggle_watchlist(req: WatchlistToggleRequest):
+    """Toggles movie presence in the profile's server watchlist."""
+    async with AsyncSession(engine) as db:
+        stmt = select(WatchlistItem).where(
+            WatchlistItem.profile_id == req.profile_id,
+            WatchlistItem.movie_id == req.movie_id
+        )
+        result = await db.exec(stmt)
+        item = result.first()
+        
+        if item:
+            await db.delete(item)
+            status = "removed"
+        else:
+            item = WatchlistItem(
+                profile_id=req.profile_id,
+                movie_id=req.movie_id,
+                created_at=datetime.utcnow().isoformat()
+            )
+            db.add(item)
+            status = "added"
+            
+        await db.commit()
+        
+        # Return updated watchlist
+        stmt_all = select(WatchlistItem).where(WatchlistItem.profile_id == req.profile_id)
+        result_all = await db.exec(stmt_all)
+        items_all = result_all.all()
+        items_all.sort(key=lambda x: x.created_at, reverse=True)
+        return {"status": status, "watchlist": [x.movie_id for x in items_all]}
+
+
+@app.get("/api/discover", response_model=List[DiscoverMovieResponse])
+async def get_discover_movies(category: str = "action", type: str = "movie"):
+    """Fetches trending movies or series from TMDB for the discover rows."""
+    from services.tmdb import tmdb_client
+    return await tmdb_client.discover_media(category, type)
+
+@app.get("/api/search", response_model=List[DiscoverMovieResponse])
+async def search_tmdb_movies(query: str):
+    """Searches movies from TMDB for search suggestion results and caches posters/backdrops."""
+    from services.tmdb import tmdb_client
+    if not query:
+        return []
+    return await tmdb_client.search_media(query)
+
+@app.get("/api/series/{tmdb_id}/episodes", response_model=List[EpisodeResponse])
+async def get_series_episodes(tmdb_id: int):
+    """Fetches real seasons and episodes for a TV series from TMDB, enriched with local catalog data if available."""
+    from services.tmdb import tmdb_client
+    
+    # 1. Fetch local episodes cataloged in the database
+    async with AsyncSession(engine) as db:
+        stmt = select(Episode).where(Episode.movie_id == f"tv_{tmdb_id}").order_by(Episode.season_number, Episode.episode_number)
+        result = await db.exec(stmt)
+        local_episodes = result.all()
+        
+    # Map local episodes by (season_number, episode_number) for O(1) enrichment lookup
+    local_map = {
+        (e.season_number, e.episode_number): e
+        for e in local_episodes
+    }
+        
+    # 2. Fetch episodes dynamically from TMDB so we always get all seasons and episodes
+    try:
+        show_data = await tmdb_client._get(f"/tv/{tmdb_id}")
+        if not show_data:
+            raise HTTPException(status_code=404, detail="TV Series not found in TMDB")
+            
+        seasons = show_data.get("seasons", [])
+        active_seasons = []
+        today = datetime.now().date()
+        for s in seasons:
+            if s.get("season_number", 0) <= 0:
+                continue
+            air_date = s.get("air_date")
+            if air_date:
+                try:
+                    air_dt = datetime.strptime(air_date, "%Y-%m-%d").date()
+                    if air_dt > today:
+                        continue
+                except ValueError:
+                    pass
+            active_seasons.append(s)
+        if not active_seasons and seasons:
+            active_seasons = seasons
+            
+        all_episodes = []
+        
+        async def fetch_season_episodes(season_num: int):
+            season_data = await tmdb_client._get(f"/tv/{tmdb_id}/season/{season_num}")
+            if not season_data or not season_data.get("episodes"):
+                return []
+            
+            eps = []
+            for ep in season_data.get("episodes", []):
+                ep_air_date = ep.get("air_date")
+                if ep_air_date:
+                    try:
+                        ep_air_dt = datetime.strptime(ep_air_date, "%Y-%m-%d").date()
+                        if ep_air_dt > today:
+                            continue
+                    except ValueError:
+                        pass
+                ep_num = ep.get("episode_number", 1)
+                still_path = ep.get("still_path")
+                thumbnail_url = f"https://image.tmdb.org/t/p/w300{still_path}" if still_path else ""
+                
+                runtime = ep.get("runtime", 0) or 45
+                duration_str = f"{runtime}m"
+                
+                # Check if this episode is locally downloaded/cataloged in our database
+                local_ep = local_map.get((season_num, ep_num))
+                if local_ep:
+                    eps.append(
+                        EpisodeResponse(
+                            id=local_ep.id,
+                            episode_number=local_ep.episode_number,
+                            season_number=local_ep.season_number,
+                            title=local_ep.title,
+                            description=local_ep.description,
+                            thumbnail_url=local_ep.thumbnail_url or thumbnail_url,
+                            video_url=local_ep.video_url,
+                            duration=local_ep.duration
+                        )
+                    )
+                else:
+                    eps.append(
+                        EpisodeResponse(
+                            id=f"ep_{tmdb_id}_s{season_num}_e{ep_num}",
+                            episode_number=ep_num,
+                            season_number=season_num,
+                            title=ep.get("name") or f"Episode {ep_num}",
+                            description=ep.get("overview") or "",
+                            thumbnail_url=thumbnail_url,
+                            video_url="",
+                            duration=duration_str
+                        )
+                    )
+            return eps
+            
+        tasks = [fetch_season_episodes(s.get("season_number", 1)) for s in active_seasons]
+        results = await asyncio.gather(*tasks)
+        
+        for r in results:
+            all_episodes.extend(r)
+            
+        all_episodes.sort(key=lambda x: (x.season_number, x.episode_number))
+        return all_episodes
+        
+    except Exception as e:
+        print(f"[API Series] Error fetching seasons/episodes from TMDB for {tmdb_id}: {e}")
+        # Fallback to local episodes if TMDB fetch fails
+        return [
+            EpisodeResponse(
+                id=e.id,
+                episode_number=e.episode_number,
+                season_number=e.season_number,
+                title=e.title,
+                description=e.description,
+                thumbnail_url=e.thumbnail_url,
+                video_url=e.video_url,
+                duration=e.duration
+            )
+            for e in local_episodes
+        ]
+
+class ProfileSaveRequest(APIModel):
+    id: str
+    name: str
+    avatar_color: str
+    theme: Optional[str] = "netflix"
+    pin_enabled: Optional[bool] = False
+    pin: Optional[str] = None
+
+@app.get("/api/profiles", response_model=List[ProfileResponse])
+async def get_profiles():
+    """Retrieves all profile records from the database."""
+    async with AsyncSession(engine) as db:
+        stmt = select(Profile)
+        result = await db.exec(stmt)
+        profiles = result.all()
+        return [
+            ProfileResponse(
+                id=p.id,
+                name=p.name,
+                avatar_color=p.avatar_color,
+                theme=p.theme,
+                pin_enabled=p.pin_enabled,
+                pin=p.pin
+            )
+            for p in profiles
+        ]
+
+@app.post("/api/profiles", response_model=ProfileResponse)
+async def save_profile(req: ProfileSaveRequest):
+    """Creates a new profile or updates an existing profile configuration in the database."""
+    async with AsyncSession(engine) as db:
+        stmt = select(Profile).where(Profile.id == req.id)
+        result = await db.exec(stmt)
+        profile = result.first()
+        
+        if not profile:
+            profile = Profile(
+                id=req.id,
+                name=req.name,
+                avatar_color=req.avatar_color,
+                theme=req.theme,
+                pin_enabled=req.pin_enabled,
+                pin=req.pin
+            )
+            db.add(profile)
+        else:
+            profile.name = req.name
+            profile.avatar_color = req.avatar_color
+            profile.theme = req.theme
+            profile.pin_enabled = req.pin_enabled
+            profile.pin = req.pin
+            db.add(profile)
+            
+        await db.commit()
+        await db.refresh(profile)
+        return ProfileResponse(
+            id=profile.id,
+            name=profile.name,
+            avatar_color=profile.avatar_color,
+            theme=profile.theme,
+            pin_enabled=profile.pin_enabled,
+            pin=profile.pin
+        )
+
+@app.delete("/api/profiles/{profile_id}")
+async def delete_profile(profile_id: str):
+    """Deletes a profile from the database."""
+    async with AsyncSession(engine) as db:
+        stmt = select(Profile).where(Profile.id == profile_id)
+        result = await db.exec(stmt)
+        profile = result.first()
+        if not profile:
+            raise HTTPException(status_code=404, detail="Profile not found")
+        await db.delete(profile)
+        await db.commit()
+        return {"status": "deleted"}
+
+
+# ----------------- System Settings API -----------------
+
+class SystemSettingsRequest(APIModel):
+    storage_engine: str
+    rclone_remote_path: str
+
+class SystemSettingsResponse(APIModel):
+    storage_engine: str
+    rclone_remote_path: str
+
+@app.get("/api/system/settings", response_model=SystemSettingsResponse)
+async def get_system_settings():
+    """Retrieves current server storage engine and Rclone settings."""
+    return SystemSettingsResponse(
+        storage_engine=settings.STORAGE_ENGINE,
+        rclone_remote_path=settings.RCLONE_REMOTE_PATH
+    )
+
+@app.post("/api/system/settings", response_model=SystemSettingsResponse)
+async def save_system_settings(req: SystemSettingsRequest):
+    """Updates server storage engine settings and persists them to settings.json."""
+    if req.storage_engine not in ["LOCAL", "CLOUD"]:
+        raise HTTPException(status_code=400, detail="Invalid storage engine value. Must be LOCAL or CLOUD.")
+    
+    settings.STORAGE_ENGINE = req.storage_engine
+    settings.RCLONE_REMOTE_PATH = req.rclone_remote_path
+    settings.save_to_json()
+    
+    return SystemSettingsResponse(
+        storage_engine=settings.STORAGE_ENGINE,
+        rclone_remote_path=settings.RCLONE_REMOTE_PATH
+    )
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

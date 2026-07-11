@@ -1,0 +1,56 @@
+import os
+import json
+from typing import Optional
+from dotenv import load_dotenv
+
+# Load .env file relative to the config.py location
+config_dir = os.path.dirname(os.path.abspath(__file__))
+load_dotenv(dotenv_path=os.path.join(config_dir, ".env"))
+
+class Settings:
+    API_BEARER_TOKEN: str = os.getenv("API_BEARER_TOKEN", "secure-token-123")
+    TMDB_API_KEY: str = os.getenv("TMDB_API_KEY", "")
+    TMDB_READ_ACCESS_TOKEN: str = os.getenv("TMDB_READ_ACCESS_TOKEN", "")
+    db_path = os.path.abspath(os.path.join(config_dir, "database.db")).replace("\\", "/")
+    DATABASE_URL: str = os.getenv("DATABASE_URL", f"sqlite+aiosqlite:///{db_path}")
+    MEDIA_DIR: str = os.getenv("MEDIA_DIR", "media")
+    TEMP_DIR: str = os.getenv("TEMP_DIR", "temp")
+    
+    # 2FA Authentication JWT settings
+    JWT_SECRET: str = os.getenv("JWT_SECRET", "super-secret-key-change-me")
+    JWT_ALGORITHM: str = "HS256"
+    JWT_EXPIRATION_MINUTES: int = 60 * 24  # 1 day session
+
+    # Storage engine configuration: "LOCAL" or "CLOUD"
+    STORAGE_ENGINE: str = os.getenv("STORAGE_ENGINE", "LOCAL")
+    
+    # Cloud storage configuration for rclone
+    RCLONE_REMOTE_PATH: str = os.getenv("RCLONE_REMOTE_PATH", "gdrive:media")
+
+    # Ingestion Notification Settings
+    VIDEO_SENDER_API_URL: Optional[str] = os.getenv("VIDEO_SENDER_API_URL", None)
+
+    def load_from_json(self):
+        json_path = os.path.join(config_dir, "settings.json")
+        if os.path.exists(json_path):
+            try:
+                with open(json_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    self.STORAGE_ENGINE = data.get("storage_engine", self.STORAGE_ENGINE)
+                    self.RCLONE_REMOTE_PATH = data.get("rclone_remote_path", self.RCLONE_REMOTE_PATH)
+            except Exception as e:
+                print(f"Error loading settings.json: {e}")
+
+    def save_to_json(self):
+        json_path = os.path.join(config_dir, "settings.json")
+        try:
+            with open(json_path, "w", encoding="utf-8") as f:
+                json.dump({
+                    "storage_engine": self.STORAGE_ENGINE,
+                    "rclone_remote_path": self.RCLONE_REMOTE_PATH
+                }, f, indent=2, ensure_ascii=False)
+        except Exception as e:
+            print(f"Error saving settings.json: {e}")
+
+settings = Settings()
+settings.load_from_json()
