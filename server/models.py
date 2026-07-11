@@ -42,6 +42,8 @@ class Movie(SQLModel, table=True):
     quality: Optional[str] = Field(default="Source")
     languages_str: Optional[str] = Field(default='["en"]')  # Serialized JSON List[str]
     subtitles_str: Optional[str] = Field(default="[]")  # Serialized JSON List[Dict[str, str]]
+    vote_average: Optional[float] = Field(default=7.5)
+    vote_count: Optional[int] = Field(default=100)
 
     @property
     def genres(self) -> List[str]:
@@ -232,6 +234,8 @@ class MovieResponse(APIModel):
     quality: Optional[str] = "Source"
     languages: List[str] = ["en"]
     subtitles: List[Dict[str, str]] = []
+    vote_average: Optional[float] = 7.5
+    vote_count: Optional[int] = 100
     episodes: Optional[List[EpisodeResponse]] = None
 
     @classmethod
@@ -253,6 +257,8 @@ class MovieResponse(APIModel):
             quality=movie.quality or "Source",
             languages=movie.languages,
             subtitles=movie.subtitles,
+            vote_average=movie.vote_average,
+            vote_count=movie.vote_count,
             episodes=[
                 EpisodeResponse(
                     id=e.id,

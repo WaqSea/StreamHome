@@ -20,6 +20,7 @@ interface ThemeDetailsPageProps {
   selectedSeason: number;
   setSelectedSeason: (season: number) => void;
   onAddDownload?: (tmdbId: string, mediaType: string) => void;
+  apiBaseUrl: string;
 }
 
 export default function ThemeDetailsPage({
@@ -36,6 +37,7 @@ export default function ThemeDetailsPage({
   selectedSeason,
   setSelectedSeason,
   onAddDownload,
+  apiBaseUrl,
 }: ThemeDetailsPageProps) {
   const [activeTab, setActiveTab] = useState<"related" | "details" | "episodes">("episodes");
   const [likeStatus, setLikeStatus] = useState<"liked" | "disliked" | null>(null);
@@ -52,7 +54,11 @@ export default function ThemeDetailsPage({
     releaseYear: tmdbJson?.releaseYear || tmdbJson?.release_year || (tmdbJson?.release_date ? new Date(tmdbJson.release_date).getFullYear() : null) || selectedMovieForDetails.releaseYear || 2026,
     rating: tmdbJson?.rating || tmdbJson?.content_rating || selectedMovieForDetails.rating || "PG-13",
     duration: tmdbJson?.duration || (tmdbJson?.runtime ? `${Math.floor(tmdbJson.runtime / 60)}h ${tmdbJson.runtime % 60}m` : selectedMovieForDetails.duration || "1h 45m"),
-    userScore: tmdbJson?.userScore || (tmdbJson?.vote_average ? `${tmdbJson.vote_average.toFixed(1)}/10` : "8.4/10"),
+    userScore: tmdbJson?.userScore || 
+               (tmdbJson?.voteAverage ? `${tmdbJson.voteAverage.toFixed(1)}/10` : 
+               (tmdbJson?.vote_average ? `${tmdbJson.vote_average.toFixed(1)}/10` : 
+               ((selectedMovieForDetails as any).voteAverage ? `${(selectedMovieForDetails as any).voteAverage.toFixed(1)}/10` : 
+               ((selectedMovieForDetails as any).vote_average ? `${(selectedMovieForDetails as any).vote_average.toFixed(1)}/10` : "8.4/10")))),
     genres: tmdbJson?.genres?.map((g: any) => typeof g === "string" ? g : g.name) || selectedMovieForDetails.genres || [],
     overview: tmdbJson?.overview || tmdbJson?.description || selectedMovieForDetails.description || "",
     backdropUrl: tmdbJson?.backdropUrl || tmdbJson?.backdrop_path || selectedMovieForDetails.bannerUrl || selectedMovieForDetails.thumbnailUrl || "",
@@ -66,6 +72,37 @@ export default function ThemeDetailsPage({
   const isActuallyDownloaded = movies.some(
     (m) => m.id === selectedMovieForDetails?.id || (tmdbIdVal && (m.id === `m_${tmdbIdVal}` || m.id === `tv_${tmdbIdVal}`))
   );
+
+  // Fetch detailed metadata from the backend
+  useEffect(() => {
+    if (!selectedMovieForDetails) {
+      setTmdbJson(null);
+      return;
+    }
+
+    const fetchTmdbDetails = async () => {
+      const tmdbIdRaw = (selectedMovieForDetails as any).tmdb_id || (selectedMovieForDetails as any).tmdbId || selectedMovieForDetails.id;
+      if (!tmdbIdRaw) return;
+      const tmdbId = String(tmdbIdRaw).replace("discover_", "").replace("m_", "").replace("tv_", "");
+      if (!tmdbId || isNaN(Number(tmdbId))) return;
+
+      try {
+        const typeStr = selectedMovieForDetails.type === "series" ? "tv" : "movie";
+        console.log(`[ThemeDetailsPage] Fetching detailed TMDB metadata for ${typeStr} ID: ${tmdbId}`);
+        const res = await fetch(`${apiBaseUrl}/tmdb/${typeStr}/${tmdbId}`);
+        if (res.ok) {
+          const detailedData = await res.json();
+          console.log("[ThemeDetailsPage] Successfully loaded detailed TMDB metadata:", detailedData);
+          setTmdbJson(detailedData);
+        }
+      } catch (err) {
+        console.error("Failed to fetch detailed TMDB metadata:", err);
+      }
+    };
+
+    setTmdbJson(null);
+    fetchTmdbDetails();
+  }, [selectedMovieForDetails?.id, apiBaseUrl]);
 
   // Default to "episodes" if series, otherwise "related"
   useEffect(() => {

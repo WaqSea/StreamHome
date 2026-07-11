@@ -6,6 +6,15 @@ from typing import Dict, Any, List, Optional
 from config import settings
 from services.logger import logger
 
+GENRES_MAP = {
+    28: "Action", 12: "Adventure", 16: "Animation", 35: "Comedy", 80: "Crime",
+    99: "Documentary", 18: "Drama", 10751: "Family", 14: "Fantasy", 36: "History",
+    27: "Horror", 10402: "Music", 9648: "Mystery", 10749: "Romance", 878: "Sci-Fi",
+    10770: "TV Movie", 53: "Thriller", 10752: "War", 37: "Western",
+    10759: "Action & Adventure", 10762: "Kids", 10763: "News", 10764: "Reality",
+    10765: "Sci-Fi & Fantasy", 10766: "Soap", 10767: "Talk", 10768: "War & Politics"
+}
+
 class TMDBClient:
     def __init__(self):
         self.api_key = settings.TMDB_API_KEY
@@ -42,7 +51,7 @@ class TMDBClient:
 
     async def fetch_movie_metadata(self, tmdb_id: int) -> Dict[str, Any]:
         """Fetch movie details and crew credits from TMDB."""
-        data = await self._get(f"/movie/{tmdb_id}", params={"append_to_response": "credits"})
+        data = await self._get(f"/movie/{tmdb_id}", params={"append_to_response": "credits,release_dates"})
         
         if not data:
             # High-quality fallback metadata
@@ -56,7 +65,9 @@ class TMDBClient:
                 "releaseYear": 2026,
                 "rating": "PG-13",
                 "director": "Unknown Director",
-                "cast": ["Unknown Actor"]
+                "cast": ["Unknown Actor"],
+                "vote_average": 7.5,
+                "vote_count": 100
             }
 
         # Parse duration
@@ -77,6 +88,17 @@ class TMDBClient:
         backdrop_path = data.get("backdrop_path")
         thumbnail_url = f"https://image.tmdb.org/t/p/w500{poster_path}" if poster_path else ""
         banner_url = f"https://image.tmdb.org/t/p/original{backdrop_path}" if backdrop_path else ""
+
+        # Parse US certification rating
+        rating = "PG-13"
+        release_results = data.get("release_dates", {}).get("results", [])
+        for res in release_results:
+            if res.get("iso_3166_1") == "US":
+                for release_date_item in res.get("release_dates", []):
+                    cert = release_date_item.get("certification")
+                    if cert:
+                        rating = cert
+                        break
 
         # Parse director and cast
         director = "Unknown Director"
@@ -100,15 +122,17 @@ class TMDBClient:
             "genres": genres,
             "duration": duration_str,
             "releaseYear": release_year,
-            "rating": "PG-13",  # Mapped as PG-13 default
+            "rating": rating,
             "director": director,
             "cast": cast_list or ["Unknown Actor"],
-            "originalLanguage": data.get("original_language", "en")
+            "originalLanguage": data.get("original_language", "en"),
+            "vote_average": data.get("vote_average", 7.5),
+            "vote_count": data.get("vote_count", 100)
         }
 
     async def fetch_show_metadata(self, tmdb_id: int) -> Dict[str, Any]:
         """Fetch TV Show metadata."""
-        data = await self._get(f"/tv/{tmdb_id}", params={"append_to_response": "credits"})
+        data = await self._get(f"/tv/{tmdb_id}", params={"append_to_response": "credits,content_ratings"})
         
         if not data:
             # Fallback
@@ -122,7 +146,9 @@ class TMDBClient:
                 "releaseYear": 2026,
                 "rating": "TV-MA",
                 "director": "Various Directors",
-                "cast": ["Cast Member"]
+                "cast": ["Cast Member"],
+                "vote_average": 7.5,
+                "vote_count": 100
             }
 
         first_air_date = data.get("first_air_date", "")
@@ -141,6 +167,14 @@ class TMDBClient:
         avg_run_time = episode_run_times[0] if episode_run_times else 45
         duration_str = f"{avg_run_time}m"
 
+        # Parse US TV content rating
+        rating = "TV-14"
+        rating_results = data.get("content_ratings", {}).get("results", [])
+        for res in rating_results:
+            if res.get("iso_3166_1") == "US":
+                rating = res.get("rating", rating)
+                break
+
         cast_list = []
         credits = data.get("credits", {})
         if credits:
@@ -157,10 +191,12 @@ class TMDBClient:
             "genres": genres,
             "duration": duration_str,
             "releaseYear": release_year,
-            "rating": "TV-14",
+            "rating": rating,
             "director": director,
             "cast": cast_list or ["Unknown Actor"],
-            "originalLanguage": data.get("original_language", "en")
+            "originalLanguage": data.get("original_language", "en"),
+            "vote_average": data.get("vote_average", 7.5),
+            "vote_count": data.get("vote_count", 100)
         }
 
     async def fetch_episode_metadata(self, tmdb_id: int, season: int, episode: int) -> Dict[str, Any]:
@@ -445,6 +481,11 @@ class TMDBClient:
             local_thumbnail_url = raw_poster_url if raw_poster_url else f"/media/{local_prefix}/{folder_name}/poster.jpg"
             local_banner_url = raw_backdrop_url if raw_backdrop_url else f"/media/{local_prefix}/{folder_name}/backdrop.jpg"
             
+            genre_ids = item.get("genre_ids", [])
+            genres = [GENRES_MAP.get(gid) for gid in genre_ids if gid in GENRES_MAP]
+            if not genres:
+                genres = ["Action" if "action" in category.lower() else "Sci-Fi"]
+                
             result_item = {
                 "id": f"discover_{tmdb_id}",
                 "tmdb_id": tmdb_id,
@@ -452,7 +493,7 @@ class TMDBClient:
                 "description": item.get("overview", ""),
                 "thumbnail_url": local_thumbnail_url,
                 "banner_url": local_banner_url,
-                "genres": ["Action" if "action" in category.lower() else "Sci-Fi"],
+                "genres": genres,
                 "duration": "45m" if is_tv else "2h 10m",
                 "release_year": release_year,
                 "rating": "TV-14" if is_tv else "PG-13",
@@ -497,6 +538,11 @@ class TMDBClient:
             local_thumbnail_url = raw_poster_url if raw_poster_url else f"/media/Movies/{folder_name}/poster.jpg"
             local_banner_url = raw_backdrop_url if raw_backdrop_url else f"/media/Movies/{folder_name}/backdrop.jpg"
             
+            genre_ids = item.get("genre_ids", [])
+            genres = [GENRES_MAP.get(gid) for gid in genre_ids if gid in GENRES_MAP]
+            if not genres:
+                genres = ["Action", "Sci-Fi"]
+
             result_item = {
                 "id": f"discover_{tmdb_id}",
                 "tmdb_id": tmdb_id,
@@ -504,7 +550,7 @@ class TMDBClient:
                 "description": item.get("overview", ""),
                 "thumbnail_url": local_thumbnail_url,
                 "banner_url": local_banner_url,
-                "genres": ["Action", "Sci-Fi"],
+                "genres": genres,
                 "duration": "2h 10m",
                 "release_year": release_year,
                 "rating": "PG-13",

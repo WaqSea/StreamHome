@@ -412,7 +412,8 @@ class DownloadQueueManager:
                     thumbnail_url=local_thumbnail or "", banner_url=local_banner or "", video_url=served_url,
                     duration=meta.get("duration", "1h 30m"), release_year=meta.get("releaseYear", 2026),
                     rating=meta.get("rating", "PG-13"), director=meta.get("director", "Unknown"),
-                    original_language=language or meta.get("originalLanguage", "en"), type="movie"
+                    original_language=language or meta.get("originalLanguage", "en"), type="movie",
+                    vote_average=meta.get("vote_average", 7.5), vote_count=meta.get("vote_count", 100)
                 )
                 movie.genres = meta.get("genres", [])
                 movie.cast = meta.get("cast", [])
@@ -438,6 +439,8 @@ class DownloadQueueManager:
                 movie.quality = movie_quality
                 movie.languages = movie_languages
                 movie.subtitles = subs_on_disk
+                movie.vote_average = meta.get("vote_average", movie.vote_average)
+                movie.vote_count = meta.get("vote_count", movie.vote_count)
                 db.add(movie)
                 await db.commit()
                 print(f"[Queue Manager] Updated existing movie details: {movie.title}")
@@ -471,7 +474,8 @@ class DownloadQueueManager:
                     thumbnail_url=local_thumbnail or "", banner_url=local_banner or "", video_url="",
                     duration=meta.get("duration", "45m"), release_year=meta.get("releaseYear", 2026),
                     rating=meta.get("rating", "TV-14"), director=meta.get("director", "Various"),
-                    original_language=language or meta.get("originalLanguage", "en"), type="series"
+                    original_language=language or meta.get("originalLanguage", "en"), type="series",
+                    vote_average=meta.get("vote_average", 7.5), vote_count=meta.get("vote_count", 100)
                 )
                 show.genres = meta.get("genres", [])
                 show.cast = meta.get("cast", [])
@@ -490,6 +494,8 @@ class DownloadQueueManager:
                 show.cast = meta.get("cast", show.cast)
                 show.genres = meta.get("genres", show.genres)
                 show.original_language = language or meta.get("originalLanguage", show.original_language)
+                show.vote_average = meta.get("vote_average", show.vote_average)
+                show.vote_count = meta.get("vote_count", show.vote_count)
                 db.add(show)
                 await db.commit()
                 print(f"[Queue Manager] Updated TV show: {show.title}")

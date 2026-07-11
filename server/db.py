@@ -61,6 +61,15 @@ async def init_db():
                 if "lockout_until" not in user_cols:
                     logger.info("[Database] Migrating: Adding 'lockout_until' column to 'user' table...")
                     sync_conn.exec_driver_sql("ALTER TABLE user ADD COLUMN lockout_until FLOAT")
+
+            if "movie" in inspector.get_table_names():
+                movie_cols = [col["name"] for col in inspector.get_columns("movie")]
+                if "vote_average" not in movie_cols:
+                    logger.info("[Database] Migrating: Adding 'vote_average' column to 'movie' table...")
+                    sync_conn.exec_driver_sql("ALTER TABLE movie ADD COLUMN vote_average FLOAT DEFAULT 7.5")
+                if "vote_count" not in movie_cols:
+                    logger.info("[Database] Migrating: Adding 'vote_count' column to 'movie' table...")
+                    sync_conn.exec_driver_sql("ALTER TABLE movie ADD COLUMN vote_count INTEGER DEFAULT 100")
                     
         await conn.run_sync(migrate)
 

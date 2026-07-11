@@ -403,6 +403,20 @@ async def search_tmdb_movies(query: str):
         return []
     return await tmdb_client.search_media(query)
 
+@app.get("/api/tmdb/{media_type}/{tmdb_id}")
+async def get_tmdb_metadata(media_type: str, tmdb_id: int):
+    """Fetch detailed movie or TV show metadata from TMDB API."""
+    from services.tmdb import tmdb_client
+    try:
+        if media_type.lower() in ("series", "tv"):
+            data = await tmdb_client.fetch_show_metadata(tmdb_id)
+        else:
+            data = await tmdb_client.fetch_movie_metadata(tmdb_id)
+        return data
+    except Exception as e:
+        logger.error(f"[API] Failed to fetch TMDB metadata: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.get("/api/series/{tmdb_id}/episodes", response_model=List[EpisodeResponse])
 async def get_series_episodes(tmdb_id: int):
     """Fetches real seasons and episodes for a TV series from TMDB, enriched with local catalog data if available."""

@@ -5,6 +5,8 @@ from db import engine
 from models import Movie, Episode, PlaybackSession
 
 async def check():
+    from db import init_db
+    await init_db()
     async with AsyncSession(engine) as db:
         stmt = select(Movie)
         movies = (await db.exec(stmt)).all()

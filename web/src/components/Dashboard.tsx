@@ -140,6 +140,36 @@ export default function Dashboard({
     fetchEpisodesForSeries();
   }, [selectedMovieForDetails?.id, apiBaseUrl]);
 
+  useEffect(() => {
+    if (!selectedMovieForDetails) {
+      setTmdbJson(null);
+      return;
+    }
+
+    const fetchTmdbDetails = async () => {
+      // Resolve the actual TMDB ID
+      const tmdbIdRaw = (selectedMovieForDetails as any).tmdb_id || (selectedMovieForDetails as any).tmdbId || selectedMovieForDetails.id;
+      if (!tmdbIdRaw) return;
+      const tmdbId = String(tmdbIdRaw).replace("discover_", "").replace("m_", "").replace("tv_", "");
+      if (!tmdbId || isNaN(Number(tmdbId))) return;
+
+      try {
+        const typeStr = selectedMovieForDetails.type === "series" ? "tv" : "movie";
+        console.log(`[Frontend] Fetching detailed TMDB metadata for ${typeStr} ID: ${tmdbId}`);
+        const res = await fetch(`${apiBaseUrl}/tmdb/${typeStr}/${tmdbId}`);
+        if (res.ok) {
+          const detailedData = await res.json();
+          console.log("[Frontend] Successfully loaded detailed TMDB metadata:", detailedData);
+          setTmdbJson(detailedData);
+        }
+      } catch (err) {
+        console.error("Failed to fetch detailed TMDB metadata:", err);
+      }
+    };
+
+    fetchTmdbDetails();
+  }, [selectedMovieForDetails?.id, apiBaseUrl]);
+
   // Download queue states with live SSE data
   const [downloads, setDownloads] = useState<DownloadItem[]>([]);
   const [dlTmdbId, setDlTmdbId] = useState<string>("");
@@ -1214,6 +1244,7 @@ export default function Dashboard({
           selectedSeason={selectedSeason}
           setSelectedSeason={setSelectedSeason}
           onAddDownload={handlePreFillDownload}
+          apiBaseUrl={apiBaseUrl}
         />
       ) : (
         <>
@@ -2497,7 +2528,11 @@ export default function Dashboard({
             releaseYear: tmdbJson?.releaseYear || tmdbJson?.release_year || (tmdbJson?.release_date ? new Date(tmdbJson.release_date).getFullYear() : null) || selectedMovieForDetails.releaseYear || "",
             rating: tmdbJson?.rating || tmdbJson?.content_rating || selectedMovieForDetails.rating || "G",
             duration: tmdbJson?.duration || (tmdbJson?.runtime ? `${Math.floor(tmdbJson.runtime / 60)}h ${tmdbJson.runtime % 60}m` : selectedMovieForDetails.duration || ""),
-            userScore: tmdbJson?.userScore || tmdbJson?.vote_average ? `${tmdbJson.vote_average}/10` : (selectedMovieForDetails.id ? "8.0/10" : "N/A"),
+            userScore: tmdbJson?.userScore || 
+                       (tmdbJson?.voteAverage ? `${tmdbJson.voteAverage.toFixed(1)}/10` : 
+                       (tmdbJson?.vote_average ? `${tmdbJson.vote_average.toFixed(1)}/10` : 
+                       ((selectedMovieForDetails as any).voteAverage ? `${(selectedMovieForDetails as any).voteAverage.toFixed(1)}/10` : 
+                       ((selectedMovieForDetails as any).vote_average ? `${(selectedMovieForDetails as any).vote_average.toFixed(1)}/10` : "8.0/10")))),
             genres: tmdbJson?.genres?.map((g: any) => typeof g === "string" ? g : g.name) || selectedMovieForDetails.genres || [],
             overview: tmdbJson?.overview || tmdbJson?.description || selectedMovieForDetails.description || "",
             backdropUrl: tmdbJson?.backdropUrl || tmdbJson?.backdrop_path || selectedMovieForDetails.bannerUrl || selectedMovieForDetails.thumbnailUrl || "",
