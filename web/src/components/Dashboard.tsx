@@ -71,6 +71,162 @@ export default function Dashboard({
   const [tmdbSearchResults, setTmdbSearchResults] = useState<any[]>([]);
   const [isSearchingTmdb, setIsSearchingTmdb] = useState<boolean>(false);
 
+  const [browserCachedItems, setBrowserCachedItems] = useState<string[]>([]);
+  const [browserDownloadingProgress, setBrowserDownloadingProgress] = useState<Record<string, number>>({});
+  const [pwaRegistry, setPwaRegistry] = useState<Record<string, any>>({});
+
+  useEffect(() => {
+    const registry = JSON.parse(localStorage.getItem("pwa_offline_registry") || "{}");
+    setPwaRegistry(registry);
+  }, [activeTab, selectedMovieForDetails]);
+
+  const updateBrowserCachedStatus = async () => {
+    try {
+      const cache = await caches.open("stream-media-cache");
+      const keys = await cache.keys();
+      const cachedUrls = keys.map(k => k.url);
+      
+      const cachedIds: string[] = [];
+      if (selectedMovieForDetails) {
+        if (selectedMovieForDetails.type === "series") {
+          selectedMovieForDetails.episodes?.forEach(ep => {
+            if (ep.videoUrl && cachedUrls.some(u => u.endsWith(ep.videoUrl))) {
+              cachedIds.push(ep.id);
+            }
+          });
+        } else {
+          if (selectedMovieForDetails.videoUrl && cachedUrls.some(u => u.endsWith(selectedMovieForDetails.videoUrl))) {
+            cachedIds.push(selectedMovieForDetails.id);
+          }
+        }
+      }
+      setBrowserCachedItems(cachedIds);
+    } catch (err) {
+      console.warn("Failed to read cache keys:", err);
+    }
+  };
+
+  useEffect(() => {
+    updateBrowserCachedStatus();
+  }, [selectedMovieForDetails?.id, selectedMovieForDetails?.episodes]);
+
+  const handleDownloadToBrowser = async (itemId: string, videoUrl: string, title: string) => {
+    if (!videoUrl) return;
+    
+    const absoluteUrl = videoUrl.startsWith("http") ? videoUrl : window.location.origin + videoUrl;
+    setBrowserDownloadingProgress(prev => ({ ...prev, [itemId]: 1 }));
+    
+    try {
+      const response = await fetch(absoluteUrl);
+      if (!response.ok) throw new Error(`Fetch failed: ${response.status}`);
+      
+      const contentLength = response.headers.get("content-length");
+      const totalBytes = contentLength ? parseInt(contentLength, 10) : 0;
+      
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error("ReadableStream not supported");
+      
+      let receivedBytes = 0;
+      const chunks: Uint8Array[] = [];
+      
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        
+        chunks.push(value);
+        receivedBytes += value.length;
+        
+        if (totalBytes > 0) {
+          const pct = Math.round((receivedBytes / totalBytes) * 100);
+          setBrowserDownloadingProgress(prev => ({ ...prev, [itemId]: pct }));
+        }
+      }
+      
+      const blob = new Blob(chunks, { type: response.headers.get("content-type") || "video/mp4" });
+      const cache = await caches.open("stream-media-cache");
+      await cache.put(absoluteUrl, new Response(blob, {
+        headers: {
+          "Content-Type": blob.type,
+          "Content-Length": String(blob.size),
+          "Accept-Ranges": "bytes"
+        }
+      }));
+      
+      const itemRegistryData: any = {
+        id: itemId,
+        title: title,
+        videoUrl: videoUrl,
+        type: selectedMovieForDetails?.type || "movie",
+        description: selectedMovieForDetails?.description || "",
+        thumbnailUrl: selectedMovieForDetails?.thumbnailUrl || "",
+        duration: selectedMovieForDetails?.duration || "",
+        releaseYear: selectedMovieForDetails?.releaseYear || 2026,
+        genres: selectedMovieForDetails?.genres || [],
+        rating: selectedMovieForDetails?.rating || "PG-13",
+      };
+
+      if (selectedMovieForDetails?.type === "series" && selectedMovieForDetails.episodes) {
+        const ep = selectedMovieForDetails.episodes.find(e => e.id === itemId);
+        if (ep) {
+          itemRegistryData.title = `${selectedMovieForDetails.title}: S${ep.seasonNumber}E${ep.episodeNumber} - ${ep.title}`;
+          itemRegistryData.activeEpisodeId = ep.id;
+          itemRegistryData.activeEpisodeNumber = ep.episodeNumber;
+          itemRegistryData.activeSeasonNumber = ep.seasonNumber;
+          itemRegistryData.thumbnailUrl = ep.thumbnailUrl || selectedMovieForDetails.thumbnailUrl;
+          itemRegistryData.duration = ep.duration;
+        }
+      }
+
+      const registry = JSON.parse(localStorage.getItem("pwa_offline_registry") || "{}");
+      registry[itemId] = itemRegistryData;
+      localStorage.setItem("pwa_offline_registry", JSON.stringify(registry));
+      setPwaRegistry(registry);
+      
+      setBrowserCachedItems(prev => [...prev, itemId]);
+      
+      if (selectedMovieForDetails?.thumbnailUrl) {
+        const thumbAbs = selectedMovieForDetails.thumbnailUrl.startsWith("http") ? selectedMovieForDetails.thumbnailUrl : window.location.origin + selectedMovieForDetails.thumbnailUrl;
+        try {
+          const thumbRes = await fetch(thumbAbs);
+          if (thumbRes.ok) await cache.put(thumbAbs, thumbRes.clone());
+        } catch(e) {}
+      }
+
+      setBrowserDownloadingProgress(prev => {
+        const copy = { ...prev };
+        delete copy[itemId];
+        return copy;
+      });
+    } catch (err) {
+      console.error("Browser download failed:", err);
+      alert(`Offline download failed: ${err instanceof Error ? err.message : String(err)}`);
+      setBrowserDownloadingProgress(prev => {
+        const copy = { ...prev };
+        delete copy[itemId];
+        return copy;
+      });
+    }
+  };
+
+  const handleRemoveFromBrowser = async (itemId: string, videoUrl: string) => {
+    if (!videoUrl) return;
+    const absoluteUrl = videoUrl.startsWith("http") ? videoUrl : window.location.origin + videoUrl;
+    
+    try {
+      const cache = await caches.open("stream-media-cache");
+      await cache.delete(absoluteUrl);
+      
+      const registry = JSON.parse(localStorage.getItem("pwa_offline_registry") || "{}");
+      delete registry[itemId];
+      localStorage.setItem("pwa_offline_registry", JSON.stringify(registry));
+      setPwaRegistry(registry);
+      
+      setBrowserCachedItems(prev => prev.filter(id => id !== itemId));
+    } catch (err) {
+      console.error("Failed to delete local cache item:", err);
+    }
+  };
+
   useEffect(() => {
     if (!searchQuery.trim()) {
       setTmdbSearchResults([]);
@@ -1834,6 +1990,85 @@ export default function Dashboard({
                   ))
                 )}
               </div>
+
+              {/* Browser Offline Library (PWA Caches) */}
+              <div className="mt-12 pt-8 border-t border-zinc-800 space-y-4">
+                <div className="text-left">
+                  <h2 className="text-lg sm:text-xl font-black tracking-tight text-white uppercase">
+                    Browser Offline Library (PWA Local Storage)
+                  </h2>
+                  <p className="text-zinc-400 text-xs mt-1">
+                    Manage media downloaded locally on this device/browser. You can play these items even when completely offline.
+                  </p>
+                </div>
+                
+                {Object.keys(pwaRegistry).length === 0 ? (
+                  <div className="text-center py-10 bg-zinc-950/40 rounded-xl border border-zinc-800/60">
+                    <Download className="w-8 h-8 text-zinc-700 mx-auto mb-3" />
+                    <h4 className="text-xs font-bold text-zinc-500 uppercase tracking-widest">No local offline downloads</h4>
+                    <p className="text-[11px] text-zinc-600 mt-1">
+                      Go to any movie detail modal or TV episode list and click "Download to Browser" to cache items offline.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                    {Object.values(pwaRegistry).map((regItem: any) => (
+                      <div 
+                        key={regItem.id} 
+                        className="bg-[#121212] border border-zinc-800 rounded-lg overflow-hidden flex flex-col hover:border-zinc-700 transition"
+                      >
+                        <div className="relative aspect-video bg-zinc-950">
+                          <img 
+                            src={regItem.thumbnailUrl || regItem.posterUrl} 
+                            alt={regItem.title} 
+                            className="w-full h-full object-cover opacity-80"
+                          />
+                          <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+                            <button
+                              onClick={() => {
+                                // Play local item!
+                                onPlayMovie(regItem);
+                              }}
+                              className="w-10 h-10 rounded-full bg-red-600 text-white flex items-center justify-center shadow-lg active:scale-90 transition-transform"
+                            >
+                              <Play className="w-5 h-5 fill-current ml-0.5" />
+                            </button>
+                          </div>
+                        </div>
+                        <div className="p-3.5 space-y-1.5 flex-1 flex flex-col justify-between text-left">
+                          <div>
+                            <div className="flex items-center justify-between">
+                              <h5 className="font-extrabold text-white text-xs truncate max-w-[150px] uppercase">
+                                {regItem.title}
+                              </h5>
+                              <span className="text-[9px] bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-extrabold px-1.5 py-0.2 rounded uppercase">
+                                Offline Ready
+                              </span>
+                            </div>
+                            <p className="text-[10px] text-zinc-500 line-clamp-2 mt-1">
+                              {regItem.description || regItem.overview}
+                            </p>
+                          </div>
+                          <div className="flex items-center justify-between pt-2 border-t border-zinc-900/60 mt-2 text-[10px] text-zinc-400">
+                            <span>{regItem.duration || regItem.releaseYear}</span>
+                            <button
+                              onClick={() => {
+                                if (confirm("Remove this offline download from your browser?")) {
+                                  handleRemoveFromBrowser(regItem.id, regItem.videoUrl);
+                                }
+                              }}
+                              className="text-zinc-500 hover:text-red-500 transition cursor-pointer"
+                              title="Delete local copy"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
@@ -2770,9 +3005,52 @@ export default function Dashboard({
 
                                   {/* Episode metadata */}
                                   <div className="flex-1 space-y-1 text-left">
-                                    <h5 className="text-xs font-bold text-white group-hover/episode:text-red-500 transition duration-150">
-                                      {episode.episodeNumber}. {episode.title}
-                                    </h5>
+                                    <div className="flex items-center justify-between gap-2">
+                                      <h5 className="text-xs font-bold text-white group-hover/episode:text-red-500 transition duration-150">
+                                        {episode.episodeNumber}. {episode.title}
+                                      </h5>
+                                      
+                                      {/* Episode PWA local download control */}
+                                      {episode.videoUrl && (() => {
+                                        const isCached = browserCachedItems.includes(episode.id);
+                                        const progress = browserDownloadingProgress[episode.id];
+                                        
+                                        if (progress !== undefined) {
+                                          return (
+                                            <span className="flex items-center gap-1 text-[10px] text-red-500 font-mono">
+                                              <span className="w-3 h-3 rounded-full border border-t-transparent border-red-500 animate-spin inline-block" />
+                                              <span>{progress}%</span>
+                                            </span>
+                                          );
+                                        }
+                                        
+                                        if (isCached) {
+                                          return (
+                                            <button
+                                              onClick={() => {
+                                                if (confirm("Remove this offline download from your browser?")) {
+                                                  handleRemoveFromBrowser(episode.id, episode.videoUrl);
+                                                }
+                                              }}
+                                              className="p-1 text-red-500 hover:text-red-400 active:scale-90 transition cursor-pointer"
+                                              title="Remove offline copy from browser"
+                                            >
+                                              <Check className="w-4 h-4 text-emerald-400" />
+                                            </button>
+                                          );
+                                        }
+                                        
+                                        return (
+                                          <button
+                                            onClick={() => handleDownloadToBrowser(episode.id, episode.videoUrl, `${selectedMovieForDetails.title} S${episode.seasonNumber}E${episode.episodeNumber}`)}
+                                            className="p-1 text-zinc-500 hover:text-white active:scale-90 transition cursor-pointer"
+                                            title="Download episode to browser for offline viewing"
+                                          >
+                                            <Download className="w-4 h-4" />
+                                          </button>
+                                        );
+                                      })()}
+                                    </div>
                                     <p className="text-[11px] text-zinc-400 font-normal leading-relaxed line-clamp-2">
                                       {episode.description}
                                     </p>
@@ -2906,6 +3184,50 @@ export default function Dashboard({
                         </>
                       )}
                     </button>
+
+                    {/* PWA Download to Browser Button (Movies only) */}
+                    {isActuallyDownloaded && selectedMovieForDetails.type === "movie" && (() => {
+                      const isCached = browserCachedItems.includes(modalData.id);
+                      const progress = browserDownloadingProgress[modalData.id];
+                      
+                      if (progress !== undefined) {
+                        return (
+                          <button
+                            disabled
+                            className="px-5 py-2.5 sm:py-3 border border-red-500/30 bg-red-500/10 text-red-400 rounded-sm font-bold text-xs md:text-sm uppercase tracking-widest flex items-center gap-2 cursor-not-allowed"
+                          >
+                            <span className="w-4 h-4 rounded-full border-2 border-t-transparent border-red-500 animate-spin" />
+                            <span>Downloading {progress}%</span>
+                          </button>
+                        );
+                      }
+                      
+                      if (isCached) {
+                        return (
+                          <button
+                            onClick={() => {
+                              if (confirm("Remove this offline download from your browser?")) {
+                                handleRemoveFromBrowser(modalData.id, selectedMovieForDetails.videoUrl);
+                              }
+                            }}
+                            className="px-5 py-2.5 sm:py-3 border border-red-500/40 text-red-500 bg-red-500/5 hover:bg-red-500/15 rounded-sm font-bold text-xs md:text-sm uppercase tracking-widest transition-all duration-200 active:scale-95 flex items-center gap-2"
+                          >
+                            <Trash2 className="w-4.5 h-4.5" />
+                            <span>Delete Offline</span>
+                          </button>
+                        );
+                      }
+                      
+                      return (
+                        <button
+                          onClick={() => handleDownloadToBrowser(modalData.id, selectedMovieForDetails.videoUrl, selectedMovieForDetails.title)}
+                          className="px-5 py-2.5 sm:py-3 border border-zinc-500 text-zinc-300 hover:text-white hover:border-white hover:bg-white/5 rounded-sm font-bold text-xs md:text-sm uppercase tracking-widest transition-all duration-200 active:scale-95 flex items-center gap-2"
+                        >
+                          <Download className="w-4.5 h-4.5" />
+                          <span>Save Offline</span>
+                        </button>
+                      );
+                    })()}
                   </div>
                 </div>
               </motion.div>

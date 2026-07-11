@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { motion } from "motion/react";
 import { 
-  Play, Plus, Check, Clock, ThumbsUp, ThumbsDown, Share2, Download, 
+  Play, Plus, Check, Clock, ThumbsUp, ThumbsDown, Share2, Download, Trash2,
   ArrowLeft, Tv, Star, User, Calendar, Sparkles, Cpu, Layers, Activity 
 } from "lucide-react";
 import { Movie, Profile, PlaybackSession, Episode } from "../types";
@@ -41,9 +41,157 @@ export default function ThemeDetailsPage({
 }: ThemeDetailsPageProps) {
   const [activeTab, setActiveTab] = useState<"related" | "details" | "episodes">("episodes");
   const [likeStatus, setLikeStatus] = useState<"liked" | "disliked" | null>(null);
-  const [isDownloading, setIsDownloading] = useState<boolean>(false);
-  const [downloadProgress, setDownloadProgress] = useState<number>(0);
-  const [isDownloaded, setIsDownloaded] = useState<boolean>(false);
+  const [browserCachedItems, setBrowserCachedItems] = useState<string[]>([]);
+  const [browserDownloadingProgress, setBrowserDownloadingProgress] = useState<Record<string, number>>({});
+
+  const isDownloaded = selectedMovieForDetails ? browserCachedItems.includes(selectedMovieForDetails.id) : false;
+  const isDownloading = selectedMovieForDetails ? browserDownloadingProgress[selectedMovieForDetails.id] !== undefined : false;
+  const downloadProgress = selectedMovieForDetails ? (browserDownloadingProgress[selectedMovieForDetails.id] || 0) : 0;
+
+  const updateBrowserCachedStatus = async () => {
+    try {
+      const cache = await caches.open("stream-media-cache");
+      const keys = await cache.keys();
+      const cachedUrls = keys.map(k => k.url);
+      
+      const cachedIds: string[] = [];
+      if (selectedMovieForDetails) {
+        if (selectedMovieForDetails.type === "series") {
+          selectedMovieForDetails.episodes?.forEach(ep => {
+            if (ep.videoUrl && cachedUrls.some(u => u.endsWith(ep.videoUrl))) {
+              cachedIds.push(ep.id);
+            }
+          });
+        } else {
+          if (selectedMovieForDetails.videoUrl && cachedUrls.some(u => u.endsWith(selectedMovieForDetails.videoUrl))) {
+            cachedIds.push(selectedMovieForDetails.id);
+          }
+        }
+      }
+      setBrowserCachedItems(cachedIds);
+    } catch (err) {
+      console.warn("Failed to read cache keys:", err);
+    }
+  };
+
+  useEffect(() => {
+    updateBrowserCachedStatus();
+  }, [selectedMovieForDetails?.id, selectedMovieForDetails?.episodes]);
+
+  const handleDownloadToBrowser = async (itemId: string, videoUrl: string, title: string) => {
+    if (!videoUrl) return;
+    
+    const absoluteUrl = videoUrl.startsWith("http") ? videoUrl : window.location.origin + videoUrl;
+    setBrowserDownloadingProgress(prev => ({ ...prev, [itemId]: 1 }));
+    
+    try {
+      const response = await fetch(absoluteUrl);
+      if (!response.ok) throw new Error(`Fetch failed: ${response.status}`);
+      
+      const contentLength = response.headers.get("content-length");
+      const totalBytes = contentLength ? parseInt(contentLength, 10) : 0;
+      
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error("ReadableStream not supported");
+      
+      let receivedBytes = 0;
+      const chunks: Uint8Array[] = [];
+      
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        
+        chunks.push(value);
+        receivedBytes += value.length;
+        
+        if (totalBytes > 0) {
+          const pct = Math.round((receivedBytes / totalBytes) * 100);
+          setBrowserDownloadingProgress(prev => ({ ...prev, [itemId]: pct }));
+        }
+      }
+      
+      const blob = new Blob(chunks, { type: response.headers.get("content-type") || "video/mp4" });
+      const cache = await caches.open("stream-media-cache");
+      await cache.put(absoluteUrl, new Response(blob, {
+        headers: {
+          "Content-Type": blob.type,
+          "Content-Length": String(blob.size),
+          "Accept-Ranges": "bytes"
+        }
+      }));
+      
+      const itemRegistryData: any = {
+        id: itemId,
+        title: title,
+        videoUrl: videoUrl,
+        type: selectedMovieForDetails?.type || "movie",
+        description: selectedMovieForDetails?.description || "",
+        thumbnailUrl: selectedMovieForDetails?.thumbnailUrl || "",
+        duration: selectedMovieForDetails?.duration || "",
+        releaseYear: selectedMovieForDetails?.releaseYear || 2026,
+        genres: selectedMovieForDetails?.genres || [],
+        rating: selectedMovieForDetails?.rating || "PG-13",
+      };
+
+      if (selectedMovieForDetails?.type === "series" && selectedMovieForDetails.episodes) {
+        const ep = selectedMovieForDetails.episodes.find(e => e.id === itemId);
+        if (ep) {
+          itemRegistryData.title = `${selectedMovieForDetails.title}: S${ep.seasonNumber}E${ep.episodeNumber} - ${ep.title}`;
+          itemRegistryData.activeEpisodeId = ep.id;
+          itemRegistryData.activeEpisodeNumber = ep.episodeNumber;
+          itemRegistryData.activeSeasonNumber = ep.seasonNumber;
+          itemRegistryData.thumbnailUrl = ep.thumbnailUrl || selectedMovieForDetails.thumbnailUrl;
+          itemRegistryData.duration = ep.duration;
+        }
+      }
+
+      const registry = JSON.parse(localStorage.getItem("pwa_offline_registry") || "{}");
+      registry[itemId] = itemRegistryData;
+      localStorage.setItem("pwa_offline_registry", JSON.stringify(registry));
+      
+      setBrowserCachedItems(prev => [...prev, itemId]);
+      
+      if (selectedMovieForDetails?.thumbnailUrl) {
+        const thumbAbs = selectedMovieForDetails.thumbnailUrl.startsWith("http") ? selectedMovieForDetails.thumbnailUrl : window.location.origin + selectedMovieForDetails.thumbnailUrl;
+        try {
+          const thumbRes = await fetch(thumbAbs);
+          if (thumbRes.ok) await cache.put(thumbAbs, thumbRes.clone());
+        } catch(e) {}
+      }
+
+      setBrowserDownloadingProgress(prev => {
+        const copy = { ...prev };
+        delete copy[itemId];
+        return copy;
+      });
+    } catch (err) {
+      console.error("Browser download failed:", err);
+      alert(`Offline download failed: ${err instanceof Error ? err.message : String(err)}`);
+      setBrowserDownloadingProgress(prev => {
+        const copy = { ...prev };
+        delete copy[itemId];
+        return copy;
+      });
+    }
+  };
+
+  const handleRemoveFromBrowser = async (itemId: string, videoUrl: string) => {
+    if (!videoUrl) return;
+    const absoluteUrl = videoUrl.startsWith("http") ? videoUrl : window.location.origin + videoUrl;
+    
+    try {
+      const cache = await caches.open("stream-media-cache");
+      await cache.delete(absoluteUrl);
+      
+      const registry = JSON.parse(localStorage.getItem("pwa_offline_registry") || "{}");
+      delete registry[itemId];
+      localStorage.setItem("pwa_offline_registry", JSON.stringify(registry));
+      
+      setBrowserCachedItems(prev => prev.filter(id => id !== itemId));
+    } catch (err) {
+      console.error("Failed to delete local cache item:", err);
+    }
+  };
 
   const theme = activeProfile.theme || "netflix";
 
@@ -174,7 +322,7 @@ export default function ThemeDetailsPage({
     .filter(m => m.id !== movieData.id && m.genres.some(g => movieData.genres.includes(g)))
     .slice(0, 6);
 
-  const handleDownloadSimulation = () => {
+  const handleDownloadSimulation = async () => {
     if (!isActuallyDownloaded) {
       if (onAddDownload && tmdbIdVal) {
         onAddDownload(tmdbIdVal.toString(), movieData.type || "movie");
@@ -183,20 +331,18 @@ export default function ThemeDetailsPage({
       }
       return;
     }
-    if (isDownloaded) return;
-    setIsDownloading(true);
-    setDownloadProgress(0);
-    const interval = setInterval(() => {
-      setDownloadProgress((prev) => {
-        if (prev >= 100) {
-          clearInterval(interval);
-          setIsDownloading(false);
-          setIsDownloaded(true);
-          return 100;
-        }
-        return prev + 10;
-      });
-    }, 200);
+    
+    const itemId = selectedMovieForDetails.id;
+    const isCached = browserCachedItems.includes(itemId);
+    
+    if (isCached) {
+      if (confirm("Remove this offline download from your browser?")) {
+        await handleRemoveFromBrowser(itemId, selectedMovieForDetails.videoUrl);
+      }
+      return;
+    }
+    
+    await handleDownloadToBrowser(itemId, selectedMovieForDetails.videoUrl, selectedMovieForDetails.title);
   };
 
   const handlePlayAction = () => {
@@ -497,9 +643,51 @@ export default function ThemeDetailsPage({
                     </div>
 
                     <div className="flex-1 text-left space-y-1.5">
-                      <h4 className="text-xs sm:text-sm font-extrabold text-white group-hover/ep:text-sky-400 transition">
-                        Episode {episode.episodeNumber}: {episode.title}
-                      </h4>
+                      <div className="flex items-center justify-between gap-2">
+                        <h4 className="text-xs sm:text-sm font-extrabold text-white group-hover/ep:text-sky-400 transition">
+                          Episode {episode.episodeNumber}: {episode.title}
+                        </h4>
+                        {/* Episode PWA local download control */}
+                        {episode.videoUrl && (() => {
+                          const isCached = browserCachedItems.includes(episode.id);
+                          const progress = browserDownloadingProgress[episode.id];
+                          
+                          if (progress !== undefined) {
+                            return (
+                              <span className="flex items-center gap-1 text-[10px] text-red-500 font-mono">
+                                <span className="w-3 h-3 rounded-full border border-t-transparent border-red-500 animate-spin inline-block" />
+                                <span>{progress}%</span>
+                              </span>
+                            );
+                          }
+                          
+                          if (isCached) {
+                            return (
+                              <button
+                                onClick={() => {
+                                  if (confirm("Remove this offline download from your browser?")) {
+                                    handleRemoveFromBrowser(episode.id, episode.videoUrl);
+                                  }
+                                }}
+                                className="p-1 text-red-500 hover:text-red-400 active:scale-90 transition cursor-pointer"
+                                title="Remove offline copy from browser"
+                              >
+                                <Check className="w-4 h-4 text-emerald-400" />
+                              </button>
+                            );
+                          }
+                          
+                          return (
+                            <button
+                              onClick={() => handleDownloadToBrowser(episode.id, episode.videoUrl, `${selectedMovieForDetails.title} S${episode.seasonNumber}E${episode.episodeNumber}`)}
+                              className="p-1 text-zinc-500 hover:text-white active:scale-90 transition cursor-pointer"
+                              title="Download episode to browser for offline viewing"
+                            >
+                              <Download className="w-4 h-4" />
+                            </button>
+                          );
+                        })()}
+                      </div>
                       <p className="text-xs text-zinc-400 font-normal leading-relaxed line-clamp-3">
                         {episode.description}
                       </p>
@@ -808,9 +996,51 @@ export default function ThemeDetailsPage({
                     </div>
 
                     <div className="p-4 text-left space-y-1">
-                      <h4 className="text-xs sm:text-sm font-bold text-white group-hover/ep:text-white/90 transition">
-                        S{episode.seasonNumber} E{episode.episodeNumber} • {episode.title}
-                      </h4>
+                      <div className="flex items-center justify-between gap-2">
+                        <h4 className="text-xs sm:text-sm font-bold text-white group-hover/ep:text-white/90 transition">
+                          S{episode.seasonNumber} E{episode.episodeNumber} • {episode.title}
+                        </h4>
+                        {/* Episode PWA local download control */}
+                        {episode.videoUrl && (() => {
+                          const isCached = browserCachedItems.includes(episode.id);
+                          const progress = browserDownloadingProgress[episode.id];
+                          
+                          if (progress !== undefined) {
+                            return (
+                              <span className="flex items-center gap-1 text-[10px] text-red-500 font-mono">
+                                <span className="w-3 h-3 rounded-full border border-t-transparent border-red-500 animate-spin inline-block" />
+                                <span>{progress}%</span>
+                              </span>
+                            );
+                          }
+                          
+                          if (isCached) {
+                            return (
+                              <button
+                                onClick={() => {
+                                  if (confirm("Remove this offline download from your browser?")) {
+                                    handleRemoveFromBrowser(episode.id, episode.videoUrl);
+                                  }
+                                }}
+                                className="p-1 text-red-500 hover:text-red-400 active:scale-90 transition cursor-pointer"
+                                title="Remove offline copy from browser"
+                              >
+                                <Check className="w-4 h-4 text-emerald-400" />
+                              </button>
+                            );
+                          }
+                          
+                          return (
+                            <button
+                              onClick={() => handleDownloadToBrowser(episode.id, episode.videoUrl, `${selectedMovieForDetails.title} S${episode.seasonNumber}E${episode.episodeNumber}`)}
+                              className="p-1 text-zinc-500 hover:text-white active:scale-90 transition cursor-pointer"
+                              title="Download episode to browser for offline viewing"
+                            >
+                              <Download className="w-4 h-4" />
+                            </button>
+                          );
+                        })()}
+                      </div>
                       <p className="text-xs text-zinc-400 font-light leading-relaxed line-clamp-2">
                         {episode.description}
                       </p>
@@ -1114,9 +1344,51 @@ export default function ThemeDetailsPage({
                   </div>
 
                   <div className="flex-1 text-left space-y-1">
-                    <h4 className="text-xs sm:text-sm font-bold text-cyan-400 group-hover/ep:text-white transition">
-                      TRK_0{episode.episodeNumber}: {episode.title}
-                    </h4>
+                    <div className="flex items-center justify-between gap-2">
+                      <h4 className="text-xs sm:text-sm font-bold text-cyan-400 group-hover/ep:text-white transition">
+                        TRK_0{episode.episodeNumber}: {episode.title}
+                      </h4>
+                      {/* Episode PWA local download control */}
+                      {episode.videoUrl && (() => {
+                        const isCached = browserCachedItems.includes(episode.id);
+                        const progress = browserDownloadingProgress[episode.id];
+                        
+                        if (progress !== undefined) {
+                          return (
+                            <span className="flex items-center gap-1 text-[10px] text-red-500 font-mono">
+                              <span className="w-3 h-3 rounded-full border border-t-transparent border-red-500 animate-spin inline-block" />
+                              <span>{progress}%</span>
+                            </span>
+                          );
+                        }
+                        
+                        if (isCached) {
+                          return (
+                            <button
+                              onClick={() => {
+                                if (confirm("Remove this offline download from your browser?")) {
+                                  handleRemoveFromBrowser(episode.id, episode.videoUrl);
+                                }
+                              }}
+                              className="p-1 text-red-500 hover:text-red-400 active:scale-90 transition cursor-pointer"
+                              title="Remove offline copy from browser"
+                            >
+                              <Check className="w-4 h-4 text-emerald-400" />
+                            </button>
+                          );
+                        }
+                        
+                        return (
+                          <button
+                            onClick={() => handleDownloadToBrowser(episode.id, episode.videoUrl, `${selectedMovieForDetails.title} S${episode.seasonNumber}E${episode.episodeNumber}`)}
+                            className="p-1 text-zinc-500 hover:text-white active:scale-90 transition cursor-pointer"
+                            title="Download episode to browser for offline viewing"
+                          >
+                            <Download className="w-4 h-4" />
+                          </button>
+                        );
+                      })()}
+                    </div>
                     <p className="text-xs text-zinc-500 font-light leading-relaxed line-clamp-3">
                       {episode.description}
                     </p>
