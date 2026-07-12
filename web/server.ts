@@ -9,11 +9,14 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
-  // Proxy /api and /media requests to the live Python FastAPI backend without stripping prefix
-  app.use(createProxyMiddleware({
+  // Proxy /api and /media requests to the live Python FastAPI backend
+  app.use("/api", createProxyMiddleware({
     target: "http://localhost:8000",
-    changeOrigin: true,
-    pathFilter: (pathname) => pathname.startsWith("/api") || pathname.startsWith("/media")
+    changeOrigin: true
+  }));
+  app.use("/media", createProxyMiddleware({
+    target: "http://localhost:8000",
+    changeOrigin: true
   }));
 
   // Setup basic middlewares

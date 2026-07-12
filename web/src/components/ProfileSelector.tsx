@@ -115,6 +115,9 @@ export default function ProfileSelector({ profiles, setProfiles, onSelectProfile
       if (response.ok) {
         const savedProfile = await response.json();
         setProfiles((prev) => [...prev, savedProfile]);
+      } else {
+        console.warn("Failed to create profile on database, status:", response.status);
+        setProfiles((prev) => [...prev, newProfile]);
       }
     } catch (err) {
       console.warn("Failed to create profile on database:", err);
@@ -157,6 +160,11 @@ export default function ProfileSelector({ profiles, setProfiles, onSelectProfile
         setProfiles((prev) =>
           prev.map((p) => (p.id === editingProfile.id ? savedProfile : p))
         );
+      } else {
+        console.warn("Failed to update profile on database, status:", response.status);
+        setProfiles((prev) =>
+          prev.map((p) => (p.id === editingProfile.id ? updatedProfile : p))
+        );
       }
     } catch (err) {
       console.warn("Failed to update profile on database:", err);
@@ -175,6 +183,9 @@ export default function ProfileSelector({ profiles, setProfiles, onSelectProfile
           method: "DELETE",
         });
         if (response.ok) {
+          setProfiles((prev) => prev.filter((p) => p.id !== profileId));
+        } else {
+          console.warn("Failed to delete profile from database, status:", response.status);
           setProfiles((prev) => prev.filter((p) => p.id !== profileId));
         }
       } catch (err) {

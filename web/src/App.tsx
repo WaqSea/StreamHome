@@ -5,6 +5,17 @@ import VideoPlayer from "./components/VideoPlayer";
 import LoginScreen from "./components/LoginScreen";
 import { Profile, Movie } from "./types";
 
+const normalizeApiBaseUrl = (url: string): string => {
+  let cleaned = url.trim();
+  if (cleaned.endsWith("/")) {
+    cleaned = cleaned.slice(0, -1);
+  }
+  if (!cleaned.endsWith("/api")) {
+    cleaned = cleaned + "/api";
+  }
+  return cleaned;
+};
+
 export default function App() {
   // Profiles state - initialized from localStorage cache, updated by database fetch
   const [profiles, setProfiles] = useState<Profile[]>(() => {
@@ -67,7 +78,7 @@ export default function App() {
   useEffect(() => {
     const savedApiBaseUrl = localStorage.getItem("stream_api_base_url");
     if (savedApiBaseUrl) {
-      setApiBaseUrl(savedApiBaseUrl);
+      setApiBaseUrl(normalizeApiBaseUrl(savedApiBaseUrl));
     }
     const savedToken = localStorage.getItem("stream_api_bearer_token");
     if (savedToken) {
@@ -262,8 +273,9 @@ export default function App() {
   };
 
   const handleChangeApiBaseUrl = (newUrl: string) => {
-    setApiBaseUrl(newUrl);
-    localStorage.setItem("stream_api_base_url", newUrl);
+    const normalized = normalizeApiBaseUrl(newUrl);
+    setApiBaseUrl(normalized);
+    localStorage.setItem("stream_api_base_url", normalized);
   };
 
   const handleChangeApiBearerToken = (newToken: string) => {
