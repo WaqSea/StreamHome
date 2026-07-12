@@ -41,17 +41,17 @@ server/database.db-wal
 server/backup/
 server/temp/
 temp/
+server/bin/
+bin/
 
 *.log
 .gemini/
-/C:/Users/deniz/.gemini/antigravity/
+.gemini/antigravity/
 memory-bank/
 AGENTS.md
 
 #Unimportant project files
 banner.txt
-bin/
-server/bin/
 reports.md
 
 # IDEs, Editors, & OS Files
@@ -62,5 +62,7 @@ reports.md
 *.njsproj
 *.sln
 *.swp
+*.mp4
+*.mp3
 Thumbs.db
 desktop.ini
