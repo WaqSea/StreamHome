@@ -17,7 +17,9 @@ class Settings:
     TEMP_DIR: str = os.getenv("TEMP_DIR", "temp")
     
     # 2FA Authentication JWT settings
-    JWT_SECRET: str = os.getenv("JWT_SECRET", "super-secret-key-change-me")
+    JWT_SECRET = os.getenv("JWT_SECRET")
+    if not JWT_SECRET:
+        raise ValueError("CRITICAL ERROR: JWT_SECRET environment variable is missing! Server cannot start insecurely.")
     JWT_ALGORITHM: str = "HS256"
     JWT_EXPIRATION_MINUTES: int = 60 * 24  # 1 day session
 

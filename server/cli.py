@@ -162,6 +162,50 @@ def prompt_input(label: str, default: str = "", is_masked: bool = False) -> str:
         
     return get_text_input("", default, is_masked)
 
+def get_inline_input(is_masked: bool = False) -> str:
+    """Read inline text input inside terminal bracket style."""
+    val = ""
+    while True:
+        ch = getch()
+        if ch in ("\r", "\n"):
+            break
+        elif ch == "\x1b": # ESC or Arrow key on Unix
+            if sys.platform != "win32" and kbhit():
+                ch2 = getch()
+                if ch2 == "[":
+                    if kbhit():
+                        getch()
+                continue
+            val = "ESC"
+            break
+        elif sys.platform == "win32" and ch in ("\xe0", "\x00"): # Arrow/Special keys header on Windows
+            try:
+                getch() # Consume second character
+            except Exception:
+                pass
+            continue
+        elif ch in ("\x08", "\x7f"): # Backspace
+            if len(val) > 0:
+                val = val[:-1]
+                sys.stdout.write("\b \b")
+                sys.stdout.flush()
+        else:
+            try:
+                if ord(ch) >= 32:
+                    val += ch
+                    if is_masked:
+                        sys.stdout.write("*")
+                    else:
+                        sys.stdout.write(ch)
+                    sys.stdout.flush()
+            except Exception:
+                pass
+    
+    if val != "ESC":
+        sys.stdout.write(" ]\n")
+        sys.stdout.flush()
+    return val
+
 # ─────────────────────────── .env File Manager ───────────────────────────
 
 def update_env_file(key: str, value: str):
@@ -1028,49 +1072,6 @@ async def run_setup_wizard():
 
         console.print()
 
-    # Helper to read text input inside the bracket
-    def get_inline_input(is_masked=False):
-        val = ""
-        while True:
-            ch = getch()
-            if ch in ("\r", "\n"):
-                break
-            elif ch == "\x1b": # ESC or Arrow key on Unix
-                if sys.platform != "win32" and kbhit():
-                    ch2 = getch()
-                    if ch2 == "[":
-                        if kbhit():
-                            getch()
-                    continue
-                val = "ESC"
-                break
-            elif sys.platform == "win32" and ch in ("\xe0", "\x00"): # Arrow/Special keys header on Windows
-                try:
-                    getch() # Consume second character
-                except Exception:
-                    pass
-                continue
-            elif ch in ("\x08", "\x7f"): # Backspace
-                if len(val) > 0:
-                    val = val[:-1]
-                    sys.stdout.write("\b \b")
-                    sys.stdout.flush()
-            else:
-                try:
-                    if ord(ch) >= 32:
-                        val += ch
-                        if is_masked:
-                            sys.stdout.write("*")
-                        else:
-                            sys.stdout.write(ch)
-                        sys.stdout.flush()
-                except Exception:
-                    pass
-        
-        if val != "ESC":
-            sys.stdout.write(" ]\n")
-            sys.stdout.flush()
-        return val
 
     # Step transition state machine
     step = 0
