@@ -72,6 +72,18 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
 
+  // Bypass Service Worker for:
+  // - Non-GET requests (POST, PUT, DELETE, etc.)
+  // - Non-http/https protocols (websockets, extension requests, etc.)
+  // - API routes (e.g., /api/profiles, /api/movies) except for media range streaming (/api/stream/)
+  if (
+    event.request.method !== "GET" ||
+    !url.protocol.startsWith("http") ||
+    (url.pathname.startsWith("/api/") && !url.pathname.includes("/api/stream/"))
+  ) {
+    return; // Let the browser handle the request naturally over the network
+  }
+
   // 1. Intercept media files from the media cache
   if (url.pathname.includes("/media/") || url.pathname.includes("/api/stream/")) {
     event.respondWith(
