@@ -72,6 +72,14 @@ class DownloadQueueManager:
     async def run_rclone_move_dir(self, local_dir: str, remote_subpath: str) -> bool:
         rclone_path = shutil.which("rclone")
         if not rclone_path:
+            workspace_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+            rclone_exe = "rclone.exe" if os.name == "nt" else "rclone"
+            fallback_path = os.path.join(workspace_root, "bin", rclone_exe)
+            if os.path.exists(fallback_path):
+                rclone_path = fallback_path
+                
+        if not rclone_path:
+            logger.error("[Queue Manager] Rclone binary not found. Cannot perform cloud upload.")
             return False
         
         target_remote = f"{settings.RCLONE_REMOTE_PATH}/{remote_subpath.replace('\\', '/')}"
@@ -86,6 +94,7 @@ class DownloadQueueManager:
             stdout, stderr = await process.communicate()
             return process.returncode == 0
         except Exception as e:
+            logger.error(f"[Queue Manager] Rclone move subprocess exception: {e}")
             return False
 
     async def _process_task(self, task_id: str):

@@ -328,12 +328,13 @@ async def configure_settings():
                 storage_options = [
                     f"Storage Engine Mode     : [cyan]{settings.STORAGE_ENGINE}[/cyan]",
                     f"Rclone Remote Path      : [cyan]{settings.RCLONE_REMOTE_PATH}[/cyan]",
+                    "Run Rclone Configuration Wizard (rclone config)",
                     "Back to Config Menu"
                 ]
-                storage_icons = ["⚙️", "📂", "↩️"]
+                storage_icons = ["⚙️", "📂", "⚡", "↩️"]
                 
                 sel = arrow_menu(storage_options, storage_icons, is_sub_menu=True)
-                if sel == -1 or sel == 2:
+                if sel == -1 or sel == 3:
                     break
                     
                 clear_screen()
@@ -365,6 +366,31 @@ async def configure_settings():
                     else:
                         console.print("\n   [bold bright_red][✗][/bold bright_red] [dim]Operation cancelled.[/dim]")
                     console.print("   [dim]Press Enter to continue...[/dim]", end="")
+                    get_text_input("", default_val="")
+
+                elif sel == 2:
+                    rclone_path = shutil.which("rclone")
+                    if not rclone_path:
+                        bin_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "bin"))
+                        rclone_exe = "rclone.exe" if os.name == "nt" else "rclone"
+                        fallback_path = os.path.join(bin_path, rclone_exe)
+                        if os.path.exists(fallback_path):
+                            rclone_path = fallback_path
+                            
+                    if rclone_path:
+                        clear_screen()
+                        console.print(Panel("[bold white]⚡ RUNNING INTERACTIVE RCLONE CONFIGURATION[/bold white]", border_style="bright_yellow", width=68))
+                        console.print("Starting `rclone config`... Please follow the prompts to configure your cloud remote.\n")
+                        import subprocess
+                        try:
+                            # Run it interactively directly in the current terminal process
+                            subprocess.run([rclone_path, "config"], check=True)
+                        except Exception as e:
+                            console.print(f"\n[bold red][✗] Error running rclone config: {e}[/bold red]")
+                    else:
+                        console.print("\n[bold red][✗] Rclone binary not found. Please run setup first.[/bold red]")
+                        
+                    console.print("\n   [dim]Press Enter to continue...[/dim]", end="")
                     get_text_input("", default_val="")
             
         # ─── CASE 2: INTERACTIVE INGEST API KEY PANEL (FULLY DETACHED AS REQUESTED) ───

@@ -5,6 +5,12 @@ from dotenv import load_dotenv
 
 # Load .env file relative to the config.py location
 config_dir = os.path.dirname(os.path.abspath(__file__))
+base_dir = os.path.abspath(os.path.join(config_dir, ".."))
+
+# Inject local bin/ path into system PATH for discovery of ffmpeg/ffprobe/rclone
+bin_path = os.path.abspath(os.path.join(base_dir, "bin"))
+if bin_path not in os.environ["PATH"]:
+    os.environ["PATH"] = bin_path + os.pathsep + os.environ["PATH"]
 load_dotenv(dotenv_path=os.path.join(config_dir, ".env"))
 
 class Settings:
