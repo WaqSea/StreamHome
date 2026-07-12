@@ -33,11 +33,35 @@ def verify_token(credentials: HTTPAuthorizationCredentials = Security(security))
         )
     return credentials.credentials
 
+def is_safe_url(url: Optional[str]) -> bool:
+    if not url:
+        return True
+    url_lower = url.lower()
+    return url_lower.startswith("http://") or url_lower.startswith("https://")
+
 # ----------------- Ingestion Endpoint -----------------
 
 @router.post("/api/add-movie", status_code=status.HTTP_201_CREATED)
 async def add_movie(payload: DownloadAddRequest, token: str = Depends(verify_token)):
     """Ingests media stream payload from browser extension and registers it in SQLite."""
+    if not is_safe_url(payload.video_url):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Forbidden URL protocol. Only HTTP and HTTPS are allowed."
+        )
+    if payload.audio_url and not is_safe_url(payload.audio_url):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Forbidden URL protocol. Only HTTP and HTTPS are allowed."
+        )
+    if payload.subtitles:
+        for sub in payload.subtitles:
+            if not is_safe_url(sub.url):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Forbidden URL protocol. Only HTTP and HTTPS are allowed."
+                )
+
     logger.info(f"[API] Received media ingestion payload for TMDB ID: {payload.tmdb_id}")
     
     # Query TMDB asynchronously to resolve the title

@@ -32,6 +32,8 @@ async def probe_media_stream(
         is_http = url.lower().startswith(("http://", "https://"))
         if headers_str.strip() and is_http:
             cmd.extend(["-headers", headers_str])
+        if is_http:
+            cmd.extend(["-protocol_whitelist", "http,https,tcp,tls,crypto,dns"])
         cmd.append(url)
         
         logger.info(f"[Media Probe] Probing URL: {url[:100]}...")

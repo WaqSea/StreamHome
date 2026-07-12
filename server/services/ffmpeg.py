@@ -147,12 +147,16 @@ async def download_and_merge(
     is_video_http = video_url.lower().startswith(("http://", "https://"))
     if headers_str.strip() and is_video_http:
         cmd.extend(["-headers", headers_str])
+    if is_video_http:
+        cmd.extend(["-protocol_whitelist", "http,https,tcp,tls,crypto,dns"])
     cmd.extend(["-i", video_url])
     
     if audio_url:
         is_audio_http = audio_url.lower().startswith(("http://", "https://"))
         if headers_str.strip() and is_audio_http:
             cmd.extend(["-headers", headers_str])
+        if is_audio_http:
+            cmd.extend(["-protocol_whitelist", "http,https,tcp,tls,crypto,dns"])
         # faststart eklendi
         cmd.extend(["-i", audio_url, "-c:v", "copy", "-c:a", "copy", "-movflags", "+faststart", "-map", "0:v:0", "-map", "1:a:0", "-shortest"])
     else:
