@@ -2,7 +2,7 @@ import os
 import shutil
 import asyncio
 from typing import Optional
-from fastapi import APIRouter, HTTPException, Depends, status, Query
+from fastapi import APIRouter, HTTPException, Depends, status, Query, Request
 from fastapi.responses import StreamingResponse, FileResponse
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -15,6 +15,85 @@ from routes.auth import get_current_user
 
 router = APIRouter(prefix="/api/stream", tags=["Streaming"])
 
+import re
+import json
+
+ACTIVE_CLOUD_DOWNLOADS = set()
+
+def get_rclone_path() -> Optional[str]:
+    rclone_path = shutil.which("rclone")
+    if not rclone_path:
+        base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+        bin_path = os.path.abspath(os.path.join(base_dir, "bin"))
+        rclone_exe = "rclone.exe" if os.name == "nt" else "rclone"
+        fallback_path = os.path.join(bin_path, rclone_exe)
+        if os.path.exists(fallback_path):
+            rclone_path = fallback_path
+    return rclone_path
+
+async def download_file_from_cloud_task(target_remote: str, abs_path: str):
+    try:
+        rclone_path = get_rclone_path()
+        if not rclone_path:
+            logger.error(f"[Cloud Download] Rclone not found. Cannot download {target_remote} to {abs_path}")
+            return
+            
+        os.makedirs(os.path.dirname(abs_path), exist_ok=True)
+        cmd = [rclone_path, "copyto", target_remote, abs_path]
+        logger.info(f"[Cloud Download] Starting background copy: {' '.join(cmd)}")
+        
+        process = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.DEVNULL
+        )
+        await process.wait()
+        
+        if process.returncode == 0:
+            logger.info(f"[Cloud Download] Successfully downloaded {target_remote} to local path {abs_path}!")
+        else:
+            logger.error(f"[Cloud Download] Rclone copyto failed with status code {process.returncode}")
+    except Exception as e:
+        logger.error(f"[Cloud Download] Exception during download of {target_remote}: {e}")
+    finally:
+        ACTIVE_CLOUD_DOWNLOADS.discard(abs_path)
+
+async def cloud_stream_generator(target_remote: str, start: int, count: Optional[int] = None):
+    rclone_path = get_rclone_path()
+    if not rclone_path:
+        logger.error("[Cloud Streaming] Rclone binary not found. Cannot stream.")
+        return
+        
+    cmd = [rclone_path, "cat", "--offset", str(start)]
+    if count is not None and count > 0:
+        cmd += ["--count", str(count)]
+    cmd += [target_remote]
+    
+    logger.info(f"[Cloud Streaming] Starting cloud stream: {' '.join(cmd)}")
+    try:
+        process = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.DEVNULL
+        )
+        
+        while True:
+            chunk = await process.stdout.read(64 * 1024)
+            if not chunk:
+                break
+            yield chunk
+            
+        await process.wait()
+    except asyncio.CancelledError:
+        logger.info("[Cloud Streaming] Client disconnected. Killing rclone cat subprocess.")
+        try:
+            process.kill()
+        except:
+            pass
+        raise
+    except Exception as e:
+        logger.error(f"[Cloud Streaming] Error in stream generator: {e}")
+
 async def transcode_generator(input_path: str, height: int, start_sec: float, media_id: str, quality: str):
     import aiofiles
     # Resolve ffmpeg binary path dynamically
@@ -26,24 +105,61 @@ async def transcode_generator(input_path: str, height: int, start_sec: float, me
     temp_cache_file = os.path.join(cache_dir, f"{media_id}_{quality}.mp4.tmp")
     final_cache_file = os.path.join(cache_dir, f"{media_id}_{quality}.mp4")
     
-    should_cache = (start_sec == 0.0)
+    # If input path is not on disk, check if it's on cloud
+    stdin_arg = None
+    rclone_input_proc = None
+    
+    if not os.path.exists(input_path):
+        media_idx = input_path.replace("\\", "/").find("/media/")
+        if media_idx != -1:
+            sub_path = input_path[media_idx + 7:].replace("\\", "/")
+            target_remote = f"{settings.RCLONE_REMOTE_PATH}/{sub_path}"
+            
+            rclone_path = get_rclone_path()
+            if rclone_path:
+                rclone_cmd = [rclone_path, "cat", target_remote]
+                logger.info(f"[Streaming Router] Cloud transcoding source: {' '.join(rclone_cmd)}")
+                rclone_input_proc = await asyncio.create_subprocess_exec(
+                    *rclone_cmd,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.DEVNULL
+                )
+                stdin_arg = rclone_input_proc.stdout
+                input_path = "pipe:0"
 
     # Build transcoding command
-    cmd = [
-        ffmpeg_path,
-        "-y",
-        "-ss", str(start_sec),
-        "-i", input_path,
-        "-vf", f"scale=-2:{height}",
-        "-c:v", "libx264",
-        "-preset", "ultrafast",
-        "-tune", "zerolatency",
-        "-c:a", "aac",
-        "-b:a", "128k",
-        "-f", "mp4",
-        "-movflags", "frag_keyframe+empty_moov+faststart",
-        "pipe:1"
-    ]
+    if input_path == "pipe:0":
+        cmd = [
+            ffmpeg_path,
+            "-y",
+            "-i", "pipe:0",
+            "-ss", str(start_sec),
+            "-vf", f"scale=-2:{height}",
+            "-c:v", "libx264",
+            "-preset", "ultrafast",
+            "-tune", "zerolatency",
+            "-c:a", "aac",
+            "-b:a", "128k",
+            "-f", "mp4",
+            "-movflags", "frag_keyframe+empty_moov+faststart",
+            "pipe:1"
+        ]
+    else:
+        cmd = [
+            ffmpeg_path,
+            "-y",
+            "-ss", str(start_sec),
+            "-i", input_path,
+            "-vf", f"scale=-2:{height}",
+            "-c:v", "libx264",
+            "-preset", "ultrafast",
+            "-tune", "zerolatency",
+            "-c:a", "aac",
+            "-b:a", "128k",
+            "-f", "mp4",
+            "-movflags", "frag_keyframe+empty_moov+faststart",
+            "pipe:1"
+        ]
     
     logger.info(f"[Streaming Router] Executing on-the-fly transcode command: {' '.join(cmd)}")
     
@@ -62,6 +178,7 @@ async def transcode_generator(input_path: str, height: int, start_sec: float, me
     try:
         process = await asyncio.create_subprocess_exec(
             *cmd,
+            stdin=stdin_arg,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.DEVNULL
         )
@@ -100,6 +217,9 @@ async def transcode_generator(input_path: str, height: int, start_sec: float, me
             process.kill()
         except Exception:
             pass
+        if rclone_input_proc:
+            try: rclone_input_proc.kill()
+            except Exception: pass
         if f_cache:
             try: await f_cache.close()
             except Exception: pass
@@ -109,6 +229,9 @@ async def transcode_generator(input_path: str, height: int, start_sec: float, me
         raise
     except Exception as e:
         logger.error(f"[Streaming Router] Exception in transcode generator: {e}")
+        if rclone_input_proc:
+            try: rclone_input_proc.kill()
+            except Exception: pass
         if f_cache:
             try: await f_cache.close()
             except Exception: pass
@@ -119,6 +242,7 @@ async def transcode_generator(input_path: str, height: int, start_sec: float, me
 @router.get("/{media_id}")
 async def stream_media(
     media_id: str,
+    request: Request,
     quality: Optional[str] = Query(None), # "Source", "720p", "480p"
     start: float = Query(0.0), # Start seek point in seconds
     db: AsyncSession = Depends(get_session),
@@ -155,7 +279,83 @@ async def stream_media(
     abs_path = os.path.join(base_dir, rel_path)
     
     if not os.path.exists(abs_path):
-        # Fallback to check if it has a temp path or cloud directory (if mapping exists)
+        # Fallback: check if the file exists on the cloud
+        if settings.STORAGE_ENGINE == "CLOUD" and rel_path.startswith("media/"):
+            sub_path = rel_path[6:].replace('\\', '/')
+            target_remote = f"{settings.RCLONE_REMOTE_PATH}/{sub_path}"
+            
+            # Start background copy if not already in progress
+            if abs_path not in ACTIVE_CLOUD_DOWNLOADS:
+                ACTIVE_CLOUD_DOWNLOADS.add(abs_path)
+                asyncio.create_task(download_file_from_cloud_task(target_remote, abs_path))
+            
+            # Serve the cloud stream directly (using byte ranges if "Source" is requested)
+            if not quality or quality == "Source":
+                # Parse Range header
+                range_header = request.headers.get("range")
+                start_byte = 0
+                end_byte = None
+                
+                # Fetch size from rclone
+                file_size = 0
+                rclone_path = get_rclone_path()
+                if rclone_path:
+                    try:
+                        proc = await asyncio.create_subprocess_exec(
+                            rclone_path, "lsjson", target_remote,
+                            stdout=asyncio.subprocess.PIPE,
+                            stderr=asyncio.subprocess.DEVNULL
+                        )
+                        stdout, _ = await proc.communicate()
+                        if proc.returncode == 0:
+                            data = json.loads(stdout)
+                            if isinstance(data, list) and len(data) > 0:
+                                file_size = data[0].get("Size", 0)
+                    except Exception as e:
+                        logger.error(f"[Streaming Router] Error fetching file size from cloud: {e}")
+                
+                # Parse byte ranges
+                count = None
+                if range_header:
+                    match = re.match(r"bytes=(\d+)-(\d*)", range_header)
+                    if match:
+                        start_byte = int(match.group(1))
+                        if match.group(2):
+                            end_byte = int(match.group(2))
+                        elif file_size > 0:
+                            end_byte = file_size - 1
+                        
+                        if end_byte is not None:
+                            count = end_byte - start_byte + 1
+                
+                if file_size > 0 and end_byte is None:
+                    end_byte = file_size - 1
+                    count = file_size - start_byte
+                
+                headers = {
+                    "Accept-Ranges": "bytes",
+                    "Content-Type": "video/mp4",
+                }
+                
+                if range_header:
+                    content_range = f"bytes {start_byte}-{end_byte}/{file_size if file_size > 0 else '*'}"
+                    headers["Content-Range"] = content_range
+                    headers["Content-Length"] = str(count) if count is not None else "0"
+                    
+                    return StreamingResponse(
+                        cloud_stream_generator(target_remote, start_byte, count),
+                        status_code=206,
+                        headers=headers
+                    )
+                else:
+                    if file_size > 0:
+                        headers["Content-Length"] = str(file_size)
+                    return StreamingResponse(
+                        cloud_stream_generator(target_remote, 0, None),
+                        status_code=200,
+                        headers=headers
+                    )
+        
         raise HTTPException(status_code=404, detail=f"Media file not found on disk: {abs_path}")
         
     # 2. Check quality transcode requirements
