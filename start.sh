@@ -1,29 +1,21 @@
 #!/bin/bash
 echo "===================================================="
-echo "Starting StreamHome Media Server (Interactive Mode)"
+echo "Starting StreamHome in Background (Detached Mode)"
 echo "===================================================="
 echo ""
 
-# Activate virtual environment if present
+echo "Launching FastAPI Server in background..."
 if [ -d "venv" ]; then
-    echo "Activating virtual environment..."
-    source venv/bin/activate
+    nohup bash -c "source venv/bin/activate && cd server && python3 main.py" > backend.log 2>&1 &
+else
+    nohup bash -c "cd server && python3 main.py" > backend.log 2>&1 &
 fi
 
-echo "Starting FastAPI Server..."
-cd server && python3 main.py &
-SERVER_PID=$!
-
-echo "Starting Vite Dev Server..."
-cd ../web && npm run dev &
-WEB_PID=$!
+echo "Launching Vite Dev Server in background..."
+nohup bash -c "cd web && npm run dev" > frontend.log 2>&1 &
 
 echo ""
-echo "Both processes started."
-echo "Press Ctrl+C to stop both."
+echo "Both servers launched in the background."
+echo "Logs are written to backend.log and frontend.log."
+echo "To stop them, run ./stop.sh or kill python3/node processes."
 echo "===================================================="
-
-# Trap SIGINT (Ctrl+C) and terminate background jobs
-trap "kill $SERVER_PID $WEB_PID; exit" SIGINT
-
-wait
