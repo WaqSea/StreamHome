@@ -37,6 +37,29 @@ from db import init_db
 
 console = Console()
 
+def get_default_rclone_remote() -> str:
+    rclone_path = shutil.which("rclone")
+    if not rclone_path:
+        fallback_exe = "rclone.exe" if sys.platform == "win32" else "rclone"
+        fallback_path = os.path.join(bin_path, fallback_exe)
+        if os.path.exists(fallback_path):
+            rclone_path = fallback_path
+            
+    if rclone_path:
+        import subprocess
+        try:
+            proc = subprocess.run([rclone_path, "listremotes"], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, timeout=3)
+            if proc.returncode == 0:
+                remotes = [r.strip() for r in proc.stdout.splitlines() if r.strip()]
+                if remotes:
+                    first = remotes[0]
+                    if not first.endswith(":"):
+                        first += ":"
+                    return f"{first}media"
+        except Exception:
+            pass
+    return "gdrive:media"
+
 # ─────────────────────────── Input Utilities ───────────────────────────
 
 if sys.platform == "win32":
@@ -1041,7 +1064,8 @@ async def run_setup_wizard():
                 if state["rclone_path"] and active_field != "rclone_path":
                     print_centered(f"      Rclone Remote Path: {state['rclone_path']}")
                 elif active_field == "rclone_path":
-                    print_centered("      > Rclone Remote Path: [ ", end="")
+                    default_remote = get_default_rclone_remote()
+                    print_centered(f"      > Rclone Remote Path (Default: {default_remote}): [ ", end="")
                     return
 
             if state["backup_enabled"] is not None and active_field != "backup_enabled":
@@ -1207,6 +1231,9 @@ async def run_setup_wizard():
             if path == "ESC":
                 step = 5
                 continue
+            if not path.strip():
+                path = get_default_rclone_remote()
+            
             if path.strip():
                 state["rclone_path"] = path.strip()
                 step = 7
