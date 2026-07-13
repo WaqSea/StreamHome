@@ -35,6 +35,7 @@ const TRANSLATIONS: Record<string, Record<string, string>> = {
 
 export default function VideoPlayer({ movie, activeProfile, onBack, apiBaseUrl }: VideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const pulseIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const seekedOnLoad = useRef<boolean>(false);
@@ -196,7 +197,7 @@ export default function VideoPlayer({ movie, activeProfile, onBack, apiBaseUrl }
   const prevAudio = useRef(selectedAudioTrack);
 
   useEffect(() => {
-    if (videoRef.current && (prevQuality.current !== selectedQuality || prevAudio.current !== selectedAudioTrack)) {
+    if (videoRef.current) {
       const isPaused = videoRef.current.paused;
       const currentPos = videoRef.current.currentTime;
       const serverRoot = apiBaseUrl.replace(/\/api\/?$/, "");
@@ -206,22 +207,86 @@ export default function VideoPlayer({ movie, activeProfile, onBack, apiBaseUrl }
       const token = localStorage.getItem("stream_access_token");
       const tokenQuery = token ? `&token=${encodeURIComponent(token)}` : "";
       
-      const newSrc = selectedQuality === "Source" || selectedQuality === sourceQualityLabel
-        ? `${serverRoot}${movie.videoUrl}`
-        : `${apiBaseUrl}/stream/${mediaId}?quality=${selectedQuality}&audio_track=${selectedAudioTrack}&start=${currentPos}${tokenQuery}`;
+      if (prevQuality.current !== selectedQuality || prevAudio.current !== selectedAudioTrack) {
+        const newSrc = selectedQuality === "Source" || selectedQuality === sourceQualityLabel
+          ? `${serverRoot}${movie.videoUrl}`
+          : `${apiBaseUrl}/stream/${mediaId}?quality=${selectedQuality}&audio_track=${selectedAudioTrack}&start=${currentPos}${tokenQuery}`;
+          
+        videoRef.current.src = newSrc;
+        videoRef.current.load();
+        videoRef.current.currentTime = currentPos;
         
-      videoRef.current.src = newSrc;
-      videoRef.current.load();
-      videoRef.current.currentTime = currentPos;
-      
-      if (!isPaused) {
-        videoRef.current.play().catch(e => console.warn(e));
+        if (!isPaused) {
+          videoRef.current.play().catch(e => console.warn(e));
+        }
+      }
+
+      // Always ensure the audio element has the correct src matching the selected track/quality
+      if (selectedQuality === "Source" || selectedQuality === sourceQualityLabel) {
+        const basePath = movie.videoUrl.substring(0, movie.videoUrl.lastIndexOf("/"));
+        const langCode = movie.languages[selectedAudioTrack] || "en";
+        const newAudioSrc = `${serverRoot}${basePath}/audio/${langCode}.mp3`;
+        
+        if (audioRef.current && audioRef.current.src !== newAudioSrc) {
+          audioRef.current.src = newAudioSrc;
+          audioRef.current.load();
+          audioRef.current.currentTime = currentPos;
+          if (!isPaused) {
+            audioRef.current.play().catch(e => console.warn(e));
+          }
+        }
+      } else {
+        if (audioRef.current && audioRef.current.src !== "") {
+          audioRef.current.src = "";
+          audioRef.current.load();
+        }
       }
       
       prevQuality.current = selectedQuality;
       prevAudio.current = selectedAudioTrack;
     }
   }, [selectedQuality, selectedAudioTrack, movie.id, movie.activeEpisodeId, movie.videoUrl, apiBaseUrl]);
+
+  // Sync volume, mute, and speed to audio and video elements
+  useEffect(() => {
+    if (videoRef.current) {
+      const sourceQualityLabel = movie.quality || "Source";
+      if (selectedQuality === "Source" || selectedQuality === sourceQualityLabel) {
+        // Video is silent, so we mute it and let audio handle the sound
+        videoRef.current.muted = true;
+        videoRef.current.volume = 0;
+        
+        if (audioRef.current) {
+          audioRef.current.muted = isMuted;
+          audioRef.current.volume = volume;
+          audioRef.current.playbackRate = playbackRate;
+        }
+      } else {
+        // Video has merged audio from transcoder, so video handles sound and audio is silent/muted
+        videoRef.current.muted = isMuted;
+        videoRef.current.volume = volume;
+        videoRef.current.playbackRate = playbackRate;
+        
+        if (audioRef.current) {
+          audioRef.current.muted = true;
+          audioRef.current.volume = 0;
+        }
+      }
+    }
+  }, [volume, isMuted, playbackRate, selectedQuality, movie.quality]);
+
+  // Play/Pause synchronization
+  useEffect(() => {
+    const sourceQualityLabel = movie.quality || "Source";
+    if ((selectedQuality === "Source" || selectedQuality === sourceQualityLabel) && audioRef.current && videoRef.current) {
+      if (isPlaying) {
+        audioRef.current.currentTime = videoRef.current.currentTime;
+        audioRef.current.play().catch(e => console.warn(e));
+      } else {
+        audioRef.current.pause();
+      }
+    }
+  }, [isPlaying, selectedQuality, movie.quality]);
 
   const resetIdleTimer = () => {
     setControlsVisible(true);
@@ -323,6 +388,32 @@ export default function VideoPlayer({ movie, activeProfile, onBack, apiBaseUrl }
     };
   }, [duration, volume, isMuted, isPlaying, onBack]);
 
+  const handlePlay = () => {
+    setIsPlaying(true);
+    const sourceQualityLabel = movie.quality || "Source";
+    if ((selectedQuality === "Source" || selectedQuality === sourceQualityLabel) && audioRef.current) {
+      audioRef.current.currentTime = videoRef.current?.currentTime || 0;
+      audioRef.current.play().catch(e => console.warn(e));
+    }
+  };
+
+  const handlePause = () => {
+    setIsPlaying(false);
+    if (audioRef.current) {
+      audioRef.current.pause();
+    }
+  };
+
+  const syncAudioTime = () => {
+    const sourceQualityLabel = movie.quality || "Source";
+    if ((selectedQuality === "Source" || selectedQuality === sourceQualityLabel) && videoRef.current && audioRef.current) {
+      const drift = Math.abs(videoRef.current.currentTime - audioRef.current.currentTime);
+      if (drift > 0.15) {
+        audioRef.current.currentTime = videoRef.current.currentTime;
+      }
+    }
+  };
+
   const handlePlayPause = () => {
     if (!videoRef.current) return;
     if (videoRef.current.paused) {
@@ -344,7 +435,12 @@ export default function VideoPlayer({ movie, activeProfile, onBack, apiBaseUrl }
 
     seekTimeoutRef.current = setTimeout(() => {
       if (videoRef.current && targetSeekTimeRef.current !== null) {
-        videoRef.current.currentTime = targetSeekTimeRef.current;
+        const t = targetSeekTimeRef.current;
+        videoRef.current.currentTime = t;
+        const sourceQualityLabel = movie.quality || "Source";
+        if ((selectedQuality === "Source" || selectedQuality === sourceQualityLabel) && audioRef.current) {
+          audioRef.current.currentTime = t;
+        }
         targetSeekTimeRef.current = null;
       }
     }, 250);
@@ -363,6 +459,10 @@ export default function VideoPlayer({ movie, activeProfile, onBack, apiBaseUrl }
       if (isNaN(videoDuration) || videoDuration === Infinity || initialTimestamp < videoDuration - 10) {
         console.log(`[VideoPlayer] Seeking to initial position: ${initialTimestamp}s`);
         videoElement.currentTime = initialTimestamp;
+        const sourceQualityLabel = movie.quality || "Source";
+        if ((selectedQuality === "Source" || selectedQuality === sourceQualityLabel) && audioRef.current) {
+          audioRef.current.currentTime = initialTimestamp;
+        }
         setCurrentTime(initialTimestamp);
         seekedRef.current = true;
       }
@@ -522,8 +622,15 @@ export default function VideoPlayer({ movie, activeProfile, onBack, apiBaseUrl }
         onTimeUpdate={handleTimeUpdate}
         onLoadedMetadata={handleLoadedMetadata}
         onClick={handlePlayPause}
-        onPlay={() => setIsPlaying(true)}
-        onPause={() => setIsPlaying(false)}
+        onPlay={handlePlay}
+        onPause={handlePause}
+        onSeeking={syncAudioTime}
+        onSeeked={syncAudioTime}
+        onRateChange={() => {
+          if (audioRef.current && videoRef.current) {
+            audioRef.current.playbackRate = videoRef.current.playbackRate;
+          }
+        }}
         id="html5-video-player"
         playsInline
       >
@@ -545,6 +652,13 @@ export default function VideoPlayer({ movie, activeProfile, onBack, apiBaseUrl }
         })}
         Your browser does not support the video tag.
       </video>
+
+      {/* SYNCHRONIZED MULTI-TRACK AUDIO PLAYER */}
+      <audio
+        ref={audioRef}
+        id="html5-audio-player"
+        className="hidden"
+      />
 
       {/* OVERLAY ELEMENTS (FADE OUT ON IDLE) */}
       <AnimatePresence>

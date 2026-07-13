@@ -207,8 +207,121 @@ os.makedirs(settings.MEDIA_DIR, exist_ok=True)
 os.makedirs(os.path.join(settings.MEDIA_DIR, "Movies"), exist_ok=True)
 os.makedirs(os.path.join(settings.MEDIA_DIR, "Series"), exist_ok=True)
 
-# Mount media directory for static Range-Request playback
-app.mount("/media", StaticFiles(directory=settings.MEDIA_DIR), name="media")
+# Dynamic media route replacing standard StaticFiles to support cloud fallback & background caching
+from fastapi.responses import FileResponse, StreamingResponse
+import re
+from routes.stream import get_rclone_path, cloud_stream_generator, download_file_from_cloud_task, ACTIVE_CLOUD_DOWNLOADS
+
+@app.get("/media/{file_path:path}")
+async def serve_media_file(file_path: str, request: Request):
+    file_path = file_path.lstrip("/")
+    abs_path = os.path.abspath(os.path.join(settings.MEDIA_DIR, file_path))
+    if not abs_path.startswith(os.path.abspath(settings.MEDIA_DIR)):
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    # 1. If it exists on disk, serve it immediately
+    if os.path.exists(abs_path):
+        return FileResponse(abs_path)
+
+    # 2. If not on disk, check if we are in CLOUD storage engine
+    if settings.STORAGE_ENGINE == "CLOUD":
+        target_remote = f"{settings.RCLONE_REMOTE_PATH}/{file_path.replace('\\', '/')}"
+        
+        # Trigger background download so it's cached locally for next time
+        if abs_path not in ACTIVE_CLOUD_DOWNLOADS:
+            ACTIVE_CLOUD_DOWNLOADS.add(abs_path)
+            asyncio.create_task(download_file_from_cloud_task(target_remote, abs_path))
+            
+        # Parse range header
+        range_header = request.headers.get("range")
+        start_byte = 0
+        end_byte = None
+        file_size = 0
+        
+        # Determine media content-type
+        content_type = "application/octet-stream"
+        ext = os.path.splitext(file_path.lower())[1]
+        if ext == ".mp4":
+            content_type = "video/mp4"
+        elif ext == ".mp3":
+            content_type = "audio/mpeg"
+        elif ext in (".m4a", ".aac"):
+            content_type = "audio/mp4"
+        elif ext == ".vtt":
+            content_type = "text/vtt"
+        elif ext == ".srt":
+            content_type = "text/plain"
+        elif ext in (".jpg", ".jpeg"):
+            content_type = "image/jpeg"
+        elif ext == ".png":
+            content_type = "image/png"
+            
+        is_streamable = ext in (".mp4", ".mp3", ".m4a")
+        rclone_path = get_rclone_path()
+        if is_streamable and rclone_path:
+            # Query size from rclone
+            try:
+                proc = await asyncio.create_subprocess_exec(
+                    rclone_path, "lsjson", target_remote,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.DEVNULL
+                )
+                stdout, _ = await proc.communicate()
+                if proc.returncode == 0:
+                    data = json.loads(stdout)
+                    if isinstance(data, list) and len(data) > 0:
+                        file_size = data[0].get("Size", 0)
+            except Exception as e:
+                logger.error(f"[Media Router] Error fetching file size: {e}")
+
+            # Parse byte ranges
+            count = None
+            if range_header:
+                match = re.match(r"bytes=(\d+)-(\d*)", range_header)
+                if match:
+                    start_byte = int(match.group(1))
+                    if match.group(2):
+                        end_byte = int(match.group(2))
+                    elif file_size > 0:
+                        end_byte = file_size - 1
+                    
+                    if end_byte is not None:
+                        count = end_byte - start_byte + 1
+            
+            if file_size > 0 and end_byte is None:
+                end_byte = file_size - 1
+                count = file_size - start_byte
+            
+            headers = {
+                "Accept-Ranges": "bytes",
+                "Content-Type": content_type,
+            }
+            
+            if range_header:
+                content_range = f"bytes {start_byte}-{end_byte}/{file_size if file_size > 0 else '*'}"
+                headers["Content-Range"] = content_range
+                headers["Content-Length"] = str(count) if count is not None else "0"
+                return StreamingResponse(
+                    cloud_stream_generator(target_remote, start_byte, count),
+                    status_code=206,
+                    headers=headers
+                )
+            else:
+                if file_size > 0:
+                    headers["Content-Length"] = str(file_size)
+                return StreamingResponse(
+                    cloud_stream_generator(target_remote, 0, None),
+                    status_code=200,
+                    headers=headers
+                )
+        else:
+            return StreamingResponse(
+                cloud_stream_generator(target_remote, 0, None),
+                status_code=200,
+                headers={"Content-Type": content_type}
+            )
+
+    raise HTTPException(status_code=404, detail="File not found")
 
 
 # ----------------- Movies Catalog API -----------------

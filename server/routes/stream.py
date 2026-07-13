@@ -94,7 +94,7 @@ async def cloud_stream_generator(target_remote: str, start: int, count: Optional
     except Exception as e:
         logger.error(f"[Cloud Streaming] Error in stream generator: {e}")
 
-async def transcode_generator(input_path: str, height: int, start_sec: float, media_id: str, quality: str):
+async def transcode_generator(input_path: str, height: int, start_sec: float, media_id: str, quality: str, audio_track_idx: int = 0):
     import aiofiles
     # Resolve ffmpeg binary path dynamically
     ffmpeg_path = shutil.which("ffmpeg") or r"C:\ffmpeg\bin\ffmpeg.exe"
@@ -104,6 +104,8 @@ async def transcode_generator(input_path: str, height: int, start_sec: float, me
     os.makedirs(cache_dir, exist_ok=True)
     temp_cache_file = os.path.join(cache_dir, f"{media_id}_{quality}.mp4.tmp")
     final_cache_file = os.path.join(cache_dir, f"{media_id}_{quality}.mp4")
+    
+    original_input_path = input_path
     
     # If input path is not on disk, check if it's on cloud
     stdin_arg = None
@@ -127,39 +129,132 @@ async def transcode_generator(input_path: str, height: int, start_sec: float, me
                 stdin_arg = rclone_input_proc.stdout
                 input_path = "pipe:0"
 
-    # Build transcoding command
+    # Find the audio directory and locate the requested track
+    audio_file_path = None
+    parent_dir = os.path.dirname(original_input_path)
+    audio_dir = os.path.join(parent_dir, "audio")
+    
+    # For cloud paths, the local audio dir might not exist yet. We can try to download the audio file synchronously.
     if input_path == "pipe:0":
-        cmd = [
-            ffmpeg_path,
-            "-y",
-            "-i", "pipe:0",
-            "-ss", str(start_sec),
-            "-vf", f"scale=-2:{height}",
-            "-c:v", "libx264",
-            "-preset", "ultrafast",
-            "-tune", "zerolatency",
-            "-c:a", "aac",
-            "-b:a", "128k",
-            "-f", "mp4",
-            "-movflags", "frag_keyframe+empty_moov+faststart",
-            "pipe:1"
-        ]
+        os.makedirs(audio_dir, exist_ok=True)
+        # Try to resolve remote audio files
+        # We can list the files in the remote 'audio' directory using rclone lsjson
+        rclone_path = get_rclone_path()
+        if rclone_path:
+            media_idx = original_input_path.replace("\\", "/").find("/media/")
+            if media_idx != -1:
+                sub_path_dir = os.path.dirname(original_input_path[media_idx + 7:]).replace("\\", "/")
+                remote_audio_dir = f"{settings.RCLONE_REMOTE_PATH}/{sub_path_dir}/audio"
+                try:
+                    proc_ls = await asyncio.create_subprocess_exec(
+                        rclone_path, "lsjson", remote_audio_dir,
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.DEVNULL
+                    )
+                    stdout_ls, _ = await proc_ls.communicate()
+                    if proc_ls.returncode == 0:
+                        audio_data = json.loads(stdout_ls)
+                        audio_files = sorted([item["Name"] for item in audio_data if item["Name"].endswith(".mp3")])
+                        if audio_files:
+                            idx = min(max(0, audio_track_idx), len(audio_files) - 1)
+                            audio_filename = audio_files[idx]
+                            audio_file_path = os.path.join(audio_dir, audio_filename)
+                            
+                            # Download the audio file synchronously if not on disk
+                            if not os.path.exists(audio_file_path):
+                                remote_audio_file = f"{remote_audio_dir}/{audio_filename}"
+                                proc_dl = await asyncio.create_subprocess_exec(
+                                    rclone_path, "copyto", remote_audio_file, audio_file_path,
+                                    stdout=asyncio.subprocess.DEVNULL,
+                                    stderr=asyncio.subprocess.DEVNULL
+                                )
+                                await proc_dl.wait()
+                except Exception as e:
+                    logger.error(f"[Streaming Router] Error checking/downloading cloud audio tracks: {e}")
     else:
-        cmd = [
-            ffmpeg_path,
-            "-y",
-            "-ss", str(start_sec),
-            "-i", input_path,
-            "-vf", f"scale=-2:{height}",
-            "-c:v", "libx264",
-            "-preset", "ultrafast",
-            "-tune", "zerolatency",
-            "-c:a", "aac",
-            "-b:a", "128k",
-            "-f", "mp4",
-            "-movflags", "frag_keyframe+empty_moov+faststart",
-            "pipe:1"
-        ]
+        if os.path.exists(audio_dir):
+            try:
+                audio_files = sorted([f for f in os.listdir(audio_dir) if f.endswith(".mp3")])
+                if audio_files:
+                    idx = min(max(0, audio_track_idx), len(audio_files) - 1)
+                    audio_file_path = os.path.join(audio_dir, audio_files[idx])
+            except Exception:
+                pass
+
+    # Build transcoding command
+    if audio_file_path and os.path.exists(audio_file_path):
+        if input_path == "pipe:0":
+            cmd = [
+                ffmpeg_path,
+                "-y",
+                "-i", "pipe:0",
+                "-ss", str(start_sec),
+                "-i", audio_file_path,
+                "-vf", f"scale=-2:{height}",
+                "-c:v", "libx264",
+                "-preset", "ultrafast",
+                "-tune", "zerolatency",
+                "-c:a", "aac",
+                "-b:a", "128k",
+                "-map", "0:v:0",
+                "-map", "1:a:0",
+                "-f", "mp4",
+                "-movflags", "frag_keyframe+empty_moov+faststart",
+                "pipe:1"
+            ]
+        else:
+            cmd = [
+                ffmpeg_path,
+                "-y",
+                "-ss", str(start_sec),
+                "-i", input_path,
+                "-ss", str(start_sec),
+                "-i", audio_file_path,
+                "-vf", f"scale=-2:{height}",
+                "-c:v", "libx264",
+                "-preset", "ultrafast",
+                "-tune", "zerolatency",
+                "-c:a", "aac",
+                "-b:a", "128k",
+                "-map", "0:v:0",
+                "-map", "1:a:0",
+                "-f", "mp4",
+                "-movflags", "frag_keyframe+empty_moov+faststart",
+                "pipe:1"
+            ]
+    else:
+        if input_path == "pipe:0":
+            cmd = [
+                ffmpeg_path,
+                "-y",
+                "-i", "pipe:0",
+                "-ss", str(start_sec),
+                "-vf", f"scale=-2:{height}",
+                "-c:v", "libx264",
+                "-preset", "ultrafast",
+                "-tune", "zerolatency",
+                "-c:a", "aac",
+                "-b:a", "128k",
+                "-f", "mp4",
+                "-movflags", "frag_keyframe+empty_moov+faststart",
+                "pipe:1"
+            ]
+        else:
+            cmd = [
+                ffmpeg_path,
+                "-y",
+                "-ss", str(start_sec),
+                "-i", input_path,
+                "-vf", f"scale=-2:{height}",
+                "-c:v", "libx264",
+                "-preset", "ultrafast",
+                "-tune", "zerolatency",
+                "-c:a", "aac",
+                "-b:a", "128k",
+                "-f", "mp4",
+                "-movflags", "frag_keyframe+empty_moov+faststart",
+                "pipe:1"
+            ]
     
     logger.info(f"[Streaming Router] Executing on-the-fly transcode command: {' '.join(cmd)}")
     
@@ -245,6 +340,7 @@ async def stream_media(
     request: Request,
     quality: Optional[str] = Query(None), # "Source", "720p", "480p"
     start: float = Query(0.0), # Start seek point in seconds
+    audio_track: Optional[int] = Query(0), # Requested audio track index
     db: AsyncSession = Depends(get_session),
     user = Depends(get_current_user)
 ):
@@ -372,7 +468,7 @@ async def stream_media(
     height = 720 if quality == "720p" else 480
     
     return StreamingResponse(
-        transcode_generator(abs_path, height, start, media_id, quality),
+        transcode_generator(abs_path, height, start, media_id, quality, audio_track),
         media_type="video/mp4",
         headers={
             "Content-Type": "video/mp4",

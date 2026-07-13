@@ -218,6 +218,7 @@ class DownloadQueueManager:
             max_retries = 3
             success = False
             last_error = "Unknown download failure."
+            extracted_languages = []
             
             for attempt in range(1, max_retries + 1):
                 logger.info(f"[Queue Manager] Starting download/merge (Attempt {attempt}/{max_retries}) for task {task_id}...")
@@ -243,13 +244,18 @@ class DownloadQueueManager:
                     await asyncio.sleep(backoff)
 
             rclone_success = True
-            if success and settings.STORAGE_ENGINE == "CLOUD":
-                async with AsyncSession(engine) as db:
-                    task_db = await db.get(DownloadTask, task_id)
-                    if task_db:
-                        task_db.status = "MOVING_CLOUD"
-                        db.add(task_db)
-                        await db.commit()
+            if success:
+                # Run audio extraction and video stripping
+                from services.audio_extractor import extract_audio_and_strip_video
+                extracted_languages = await extract_audio_and_strip_video(output_abs_path)
+                
+                if settings.STORAGE_ENGINE == "CLOUD":
+                    async with AsyncSession(engine) as db:
+                        task_db = await db.get(DownloadTask, task_id)
+                        if task_db:
+                            task_db.status = "MOVING_CLOUD"
+                            db.add(task_db)
+                            await db.commit()
                 
                 from services.state import update_task_metrics
                 update_task_metrics(task_id, 99.9, speed="Uploading", eta="00:00:00")
@@ -400,7 +406,7 @@ class DownloadQueueManager:
             # Prepare metadata values for both DB and metadata.json
             movie_folder_abs = os.path.dirname(abs_file_path)
             movie_quality = quality or "Source"
-            movie_languages = [language] if language else ["en"]
+            movie_languages = extracted_languages if extracted_languages else ([language] if language else ["en"])
             subs_on_disk = []
             if subtitles_list:
                 for sub in subtitles_list:
@@ -513,7 +519,7 @@ class DownloadQueueManager:
             episode_num = episode or 1
 
             ep_quality = quality or "Source"
-            ep_languages = [language] if language else ["en"]
+            ep_languages = extracted_languages if extracted_languages else ([language] if language else ["en"])
 
             ep_folder_abs = os.path.dirname(abs_file_path)
             subs_on_disk = []
@@ -713,6 +719,34 @@ class DownloadQueueManager:
                                         
                                 if video_file_rel:
                                     file_path = video_file_rel.replace("\\", "/")
+                                    # Always check and extract audio if not yet done
+                                    abs_video_path = os.path.abspath(os.path.join(server_root, file_path))
+                                    from services.audio_extractor import extract_audio_and_strip_video
+                                    extracted_langs = await extract_audio_and_strip_video(abs_video_path)
+                                    if extracted_langs:
+                                        data["languages"] = extracted_langs
+                                        try:
+                                            with open(meta_path, "w", encoding="utf-8") as fw:
+                                                json.dump(data, fw, indent=2, ensure_ascii=False)
+                                        except Exception:
+                                            pass
+                                        
+                                        # Also update the existing DB records if they are already in the DB
+                                        if media_type == "movie":
+                                            movie_id = f"m_{tmdb_id}"
+                                            movie_obj = await db.get(Movie, movie_id)
+                                            if movie_obj:
+                                                movie_obj.languages = extracted_langs
+                                                db.add(movie_obj)
+                                                await db.commit()
+                                        else:
+                                            if season is not None and episode is not None:
+                                                ep_id = f"ep_{tmdb_id}_s{season}_e{episode}"
+                                                ep_obj = await db.get(Episode, ep_id)
+                                                if ep_obj:
+                                                    ep_obj.languages = extracted_langs
+                                                    db.add(ep_obj)
+                                                    await db.commit()
                                 else:
                                     # If no physical video file exists on disk, do not restore this placeholder/discovery cache
                                     continue
