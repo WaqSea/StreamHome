@@ -706,137 +706,161 @@ async def monitor_downloads():
     """Display active download queue status from the database. Supports ESC instant return with 1s auto-refresh."""
     engine = create_async_engine(settings.DATABASE_URL)
     
-    while True:
-        clear_screen()
-        console.print(f"[bright_cyan]{'═' * 70}[/bright_cyan]")
-        console.print(Panel(
-            "[bold white]📊   ACTIVE DOWNLOAD QUEUE & WORKERS (Auto-refreshing...)[/bold white]\n"
-            "[dim italic]Press ESC or Enter at any time to return to Main Menu[/dim italic]",
-            border_style="bright_blue",
-            width=68,
-            padding=(0, 2)
-        ))
-        console.print()
-        
+    # Disable terminal echo on Unix/Linux to prevent keypress pollution
+    old_settings = None
+    fd = None
+    if sys.platform != "win32":
         try:
-            async with AsyncSession(engine) as session:
-                stmt = select(DownloadTask).order_by(DownloadTask.created_at.desc())
-                result = await session.exec(stmt)
-                tasks = result.all()
-        except Exception as e:
-            console.print(f"   [bold bright_red][✗][/bold bright_red] [white]Failed to query database: {e}[/white]")
-            console.print("   [dim]Press Enter to return to Main Menu...[/dim]", end="")
-            get_text_input("", default_val="")
-            return
-        
-        # Load transient active metrics from the temporary JSON file
-        metrics = {}
-        try:
-            cli_dir = os.path.dirname(os.path.abspath(__file__))
-            metrics_file = os.path.join(cli_dir, "temp", "download_metrics.json")
-            if os.path.exists(metrics_file):
-                with open(metrics_file, "r") as f:
-                    metrics = json.load(f)
+            import termios
+            fd = sys.stdin.fileno()
+            old_settings = termios.tcgetattr(fd)
+            new_settings = termios.tcgetattr(fd)
+            new_settings[3] = new_settings[3] & ~termios.ECHO & ~termios.ICANON
+            termios.tcsetattr(fd, termios.TCSANOW, new_settings)
         except Exception:
             pass
 
-        if not tasks:
-            console.print("   [dim]No download tasks found in the queue.[/dim]")
-        else:
-            table = Table(
-                show_header=True,
-                header_style="bold bright_cyan",
-                border_style="dim",
+    try:
+        while True:
+            clear_screen()
+            console.print(f"[bright_cyan]{'═' * 70}[/bright_cyan]")
+            console.print(Panel(
+                "[bold white]📊   ACTIVE DOWNLOAD QUEUE & WORKERS (Auto-refreshing...)[/bold white]\n"
+                "[dim italic]Press ESC or Enter at any time to return to Main Menu[/dim italic]",
+                border_style="bright_blue",
                 width=68,
-                pad_edge=True,
-            )
-            table.add_column("Title", style="white", max_width=26, no_wrap=True)
-            table.add_column("Type", style="dim", width=6, justify="center")
-            table.add_column("Quality", style="dim", width=7, justify="center")
-            table.add_column("Status", width=25)
-            table.add_column("Created", style="dim", width=11, justify="right")
+                padding=(0, 2)
+            ))
+            console.print()
             
-            status_labels = {
-                "COMPLETED":    "[bold bright_green]✓ Done[/bold bright_green]",
-                "FAILED":       "[bold bright_red]✗ Failed[/bold bright_red]",
-                "DOWNLOADING":  "[bold bright_yellow]↓ Downloading[/bold bright_yellow]",
-                "PENDING":      "[dim]⧗ Pending[/dim]",
-                "MERGING":      "[bold bright_cyan]⚙ Merging[/bold bright_cyan]",
-                "MOVING_CLOUD": "[bold bright_magenta]☁ Uploading[/bold bright_magenta]",
-            }
+            try:
+                async with AsyncSession(engine) as session:
+                    stmt = select(DownloadTask).order_by(DownloadTask.created_at.desc())
+                    result = await session.exec(stmt)
+                    tasks = result.all()
+            except Exception as e:
+                console.print(f"   [bold bright_red][✗][/bold bright_red] [white]Failed to query database: {e}[/white]")
+                console.print("   [dim]Press Enter to return to Main Menu...[/dim]", end="")
+                get_text_input("", default_val="")
+                return
             
-            for t in tasks[:20]:
-                label = status_labels.get(t.status, f"[dim]{t.status}[/dim]")
+            # Load transient active metrics from the temporary JSON file
+            metrics = {}
+            try:
+                cli_dir = os.path.dirname(os.path.abspath(__file__))
+                metrics_file = os.path.join(cli_dir, "temp", "download_metrics.json")
+                if os.path.exists(metrics_file):
+                    with open(metrics_file, "r") as f:
+                        metrics = json.load(f)
+            except Exception:
+                pass
+    
+            if not tasks:
+                console.print("   [dim]No download tasks found in the queue.[/dim]")
+            else:
+                table = Table(
+                    show_header=True,
+                    header_style="bold bright_cyan",
+                    border_style="dim",
+                    width=68,
+                    pad_edge=True,
+                )
+                table.add_column("Title", style="white", max_width=26, no_wrap=True)
+                table.add_column("Type", style="dim", width=6, justify="center")
+                table.add_column("Quality", style="dim", width=7, justify="center")
+                table.add_column("Status", width=25)
+                table.add_column("Created", style="dim", width=11, justify="right")
                 
-                # Enhance status label dynamically if active metrics exist
-                if t.status in ("DOWNLOADING", "MERGING", "MOVING_CLOUD") and t.id in metrics:
-                    task_metrics = metrics[t.id]
-                    progress_val = task_metrics.get("progress", 0.0)
-                    speed_val = task_metrics.get("speed", "0 Mbps")
-                    eta_val = task_metrics.get("eta", "00:00:00")
-                    size_val = task_metrics.get("size", "0 MB")
+                status_labels = {
+                    "COMPLETED":    "[bold bright_green]✓ Done[/bold bright_green]",
+                    "FAILED":       "[bold bright_red]✗ Failed[/bold bright_red]",
+                    "DOWNLOADING":  "[bold bright_yellow]↓ Downloading[/bold bright_yellow]",
+                    "PENDING":      "[dim]⧗ Pending[/dim]",
+                    "MERGING":      "[bold bright_cyan]⚙ Merging[/bold bright_cyan]",
+                    "MOVING_CLOUD": "[bold bright_magenta]☁ Uploading[/bold bright_magenta]",
+                }
+                
+                for t in tasks[:20]:
+                    label = status_labels.get(t.status, f"[dim]{t.status}[/dim]")
                     
-                    if t.status == "DOWNLOADING":
-                        label = (
-                            f"[bold bright_yellow]↓ Downloading ({progress_val}%)[/bold bright_yellow]\n"
-                            f"[dim]{size_val} @ {speed_val}[/dim]\n"
-                            f"[dim]ETA: {eta_val}[/dim]"
-                        )
-                    elif t.status == "MERGING":
-                        label = (
-                            f"[bold bright_cyan]⚙ Merging ({progress_val}%)[/bold bright_cyan]\n"
-                            f"[dim]{size_val} @ {speed_val}[/dim]\n"
-                            f"[dim]ETA: {eta_val}[/dim]"
-                        )
-                    elif t.status == "MOVING_CLOUD":
-                        label = (
-                            f"[bold bright_magenta]☁ Uploading ({progress_val}%)[/bold bright_magenta]\n"
-                            f"[dim]{size_val} @ {speed_val}[/dim]\n"
-                            f"[dim]ETA: {eta_val}[/dim]"
-                        )
+                    # Enhance status label dynamically if active metrics exist
+                    if t.status in ("DOWNLOADING", "MERGING", "MOVING_CLOUD") and t.id in metrics:
+                        task_metrics = metrics[t.id]
+                        progress_val = task_metrics.get("progress", 0.0)
+                        speed_val = task_metrics.get("speed", "0 Mbps")
+                        eta_val = task_metrics.get("eta", "00:00:00")
+                        size_val = task_metrics.get("size", "0 MB")
+                        
+                        if t.status == "DOWNLOADING":
+                            label = (
+                                f"[bold bright_yellow]↓ Downloading ({progress_val}%)[/bold bright_yellow]\n"
+                                f"[dim]{size_val} @ {speed_val}[/dim]\n"
+                                f"[dim]ETA: {eta_val}[/dim]"
+                            )
+                        elif t.status == "MERGING":
+                            label = (
+                                f"[bold bright_cyan]⚙ Merging ({progress_val}%)[/bold bright_cyan]\n"
+                                f"[dim]{size_val} @ {speed_val}[/dim]\n"
+                                f"[dim]ETA: {eta_val}[/dim]"
+                            )
+                        elif t.status == "MOVING_CLOUD":
+                            label = (
+                                f"[bold bright_magenta]☁ Uploading ({progress_val}%)[/bold bright_magenta]\n"
+                                f"[dim]{size_val} @ {speed_val}[/dim]\n"
+                                f"[dim]ETA: {eta_val}[/dim]"
+                            )
+                    
+                    title_display = (t.title or f"TMDB {t.tmdb_id}")[:26]
+                    created_display = t.created_at[:10] if t.created_at else "—"
+                    
+                    table.add_row(
+                        title_display,
+                        t.media_type or "—",
+                        t.quality or "Source",
+                        label,
+                        created_display,
+                    )
                 
-                title_display = (t.title or f"TMDB {t.tmdb_id}")[:26]
-                created_display = t.created_at[:10] if t.created_at else "—"
                 
-                table.add_row(
-                    title_display,
-                    t.media_type or "—",
-                    t.quality or "Source",
-                    label,
-                    created_display,
+                console.print(table)
+                
+                # Summary counters
+                total = len(tasks)
+                completed = sum(1 for t in tasks if t.status == "COMPLETED")
+                failed = sum(1 for t in tasks if t.status == "FAILED")
+                active = sum(1 for t in tasks if t.status in ("DOWNLOADING", "MERGING", "MOVING_CLOUD"))
+                pending = sum(1 for t in tasks if t.status == "PENDING")
+                
+                console.print()
+                console.print(
+                    f"   [dim]Total: {total}  ·  Active: {active}  ·  "
+                    f"Pending: {pending}  ·  Completed: {completed}  ·  Failed: {failed}[/dim]"
                 )
             
-            console.print(table)
-            
-            # Summary counters
-            total = len(tasks)
-            completed = sum(1 for t in tasks if t.status == "COMPLETED")
-            failed = sum(1 for t in tasks if t.status == "FAILED")
-            active = sum(1 for t in tasks if t.status in ("DOWNLOADING", "MERGING", "MOVING_CLOUD"))
-            pending = sum(1 for t in tasks if t.status == "PENDING")
-            
             console.print()
-            console.print(
-                f"   [dim]Total: {total}  ·  Active: {active}  ·  "
-                f"Pending: {pending}  ·  Completed: {completed}  ·  Failed: {failed}[/dim]"
-            )
-        
-        console.print()
-        console.print("   [dim]Press ESC or Enter to return to Main Menu...[/dim]", end="")
-        sys.stdout.flush()
-        
-        # Poll kbhit every 50ms up to 20 times (1 second cooldown) to remain responsive to exits
-        user_exited = False
-        for _ in range(20):
-            if kbhit():
-                k = get_key()
-                if k in ("ENTER", "ESC"):
-                    user_exited = True
-                    break
-            await asyncio.sleep(0.05)
+            console.print("   [dim]Press ESC or Enter to return to Main Menu...[/dim]", end="")
+            sys.stdout.flush()
             
-        if user_exited:
-            break
+            # Poll kbhit every 50ms up to 20 times (1 second cooldown) to remain responsive to exits
+            user_exited = False
+            for _ in range(20):
+                if kbhit():
+                    k = get_key()
+                    if k in ("ENTER", "ESC"):
+                        user_exited = True
+                        break
+                await asyncio.sleep(0.05)
+                
+            if user_exited:
+                break
+    finally:
+        # Restore terminal settings on Unix/Linux
+        if old_settings is not None and fd is not None:
+            try:
+                import termios
+                termios.tcsetattr(fd, termios.TCSANOW, old_settings)
+            except Exception:
+                pass
 
 # ─────────────────────── 4. Remove Media Asset ───────────────────────
 
