@@ -85,11 +85,11 @@ else:
                 dr, _, _ = sys_select.select([sys.stdin], [], [], 0.05)
                 if dr:
                     ch2 = sys.stdin.read(1)
-                    if ch2 == "[":
+                    if ch2 in ("[", "O"):
                         dr2, _, _ = sys_select.select([sys.stdin], [], [], 0.05)
                         if dr2:
                             ch3 = sys.stdin.read(1)
-                            return f"\x1b[{ch3}"
+                            return f"\x1b{ch2}{ch3}"
                     return f"\x1b{ch2}"
         finally:
             termios.tcsetattr(fd, termios.TCSANOW, old_settings)
@@ -118,10 +118,10 @@ def get_key():
         return ch
     else:
         ch = getch()
-        if ch == "\x1b[A": return "UP"
-        elif ch == "\x1b[B": return "DOWN"
-        elif ch == "\x1b[D": return "LEFT"
-        elif ch == "\x1b[C": return "RIGHT"
+        if ch in ("\x1b[A", "\x1bOA"): return "UP"
+        elif ch in ("\x1b[B", "\x1bOB"): return "DOWN"
+        elif ch in ("\x1b[D", "\x1bOD"): return "LEFT"
+        elif ch in ("\x1b[C", "\x1bOC"): return "RIGHT"
         elif ch == "\x1b": return "ESC"
         if ch in ("\r", "\n"):
             return "ENTER"
