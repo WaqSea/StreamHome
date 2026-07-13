@@ -17,6 +17,8 @@ import json
 import os
 import time
 
+from config import config_dir
+
 _last_metrics_file_write = 0.0
 
 def update_task_metrics(task_id: str, progress: float, speed: str = "0 KB/s", eta: str = "00:00:00", size: str = "0 MB"):
@@ -33,11 +35,8 @@ def update_task_metrics(task_id: str, progress: float, speed: str = "0 KB/s", et
     if now - _last_metrics_file_write >= 1.0:
         _last_metrics_file_write = now
         try:
-            services_dir = os.path.dirname(os.path.abspath(__file__))
-            server_dir = os.path.dirname(services_dir)
-            temp_dir = os.path.join(server_dir, "temp")
-            os.makedirs(temp_dir, exist_ok=True)
-            metrics_file = os.path.join(temp_dir, "download_metrics.json")
+            metrics_file = os.path.join(config_dir, "temp", "download_metrics.json")
+            os.makedirs(os.path.dirname(metrics_file), exist_ok=True)
             with open(metrics_file, "w") as f:
                 json.dump(ACTIVE_DOWNLOAD_METRICS, f)
         except Exception:
@@ -49,9 +48,7 @@ def get_task_metrics(task_id: str) -> Dict[str, Any]:
 def remove_task_metrics(task_id: str):
     ACTIVE_DOWNLOAD_METRICS.pop(task_id, None)
     try:
-        services_dir = os.path.dirname(os.path.abspath(__file__))
-        server_dir = os.path.dirname(services_dir)
-        metrics_file = os.path.join(server_dir, "temp", "download_metrics.json")
+        metrics_file = os.path.join(config_dir, "temp", "download_metrics.json")
         if os.path.exists(metrics_file):
             with open(metrics_file, "w") as f:
                 json.dump(ACTIVE_DOWNLOAD_METRICS, f)

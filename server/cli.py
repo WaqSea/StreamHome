@@ -31,7 +31,7 @@ bin_path = os.path.join(project_root, "bin")
 if os.path.exists(bin_path) and bin_path not in os.environ.get("PATH", ""):
     os.environ["PATH"] = bin_path + os.pathsep + os.environ.get("PATH", "")
 
-from config import settings
+from config import settings, config_dir
 from models import User, DownloadTask, Movie, Episode
 from db import init_db
 
@@ -747,8 +747,7 @@ async def monitor_downloads():
             # Load transient active metrics from the temporary JSON file
             metrics = {}
             try:
-                cli_dir = os.path.dirname(os.path.abspath(__file__))
-                metrics_file = os.path.join(cli_dir, "temp", "download_metrics.json")
+                metrics_file = os.path.join(config_dir, "temp", "download_metrics.json")
                 if os.path.exists(metrics_file):
                     with open(metrics_file, "r") as f:
                         metrics = json.load(f)

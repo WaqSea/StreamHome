@@ -71,6 +71,7 @@ def _run_ffmpeg_sync(task_id: str, cmd: list, duration_secs: float) -> tuple[boo
             stdin=subprocess.DEVNULL,
             text=True,
             errors="ignore",
+            bufsize=1, # Line buffering (Fix for Linux stdout/stderr buffering)
             creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
         )
         register_process(task_id, process)
