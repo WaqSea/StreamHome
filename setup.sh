@@ -54,19 +54,25 @@ check_and_install() {
     echo "Missing dependencies detected: ${MISSING_DEPS[*]}"
     echo "Installing missing dependencies..."
     
+    # Determine if sudo is needed (skip if running as root)
+    SUDO="sudo"
+    if [ "$EUID" -eq 0 ]; then
+        SUDO=""
+    fi
+
     if [[ "$OSTYPE" == "linux-gnu"* ]]; then
         if [ -x "$(command -v apt-get)" ]; then
             echo "Using APT package manager to install..."
-            sudo apt-get update
-            sudo apt-get install -y "${MISSING_DEPS[@]}"
+            $SUDO apt-get update
+            $SUDO apt-get install -y "${MISSING_DEPS[@]}"
         elif [ -x "$(command -v yum)" ]; then
             echo "Using YUM package manager to install..."
-            sudo yum check-update || true
+            $SUDO yum check-update || true
             # Ensure epel-release is installed for ffmpeg/rclone on older RHEL/CentOS
             if [[ " ${MISSING_DEPS[*]} " == *" ffmpeg "* ]] || [[ " ${MISSING_DEPS[*]} " == *" rclone "* ]]; then
-                sudo yum install -y epel-release || true
+                $SUDO yum install -y epel-release || true
             fi
-            sudo yum install -y "${MISSING_DEPS[@]}"
+            $SUDO yum install -y "${MISSING_DEPS[@]}"
         else
             echo "Error: Supported package manager (apt/yum) not found. Please install missing tools manually: ${MISSING_DEPS[*]}"
             exit 1
