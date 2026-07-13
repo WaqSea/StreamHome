@@ -81,8 +81,18 @@ else:
         try:
             tty.setraw(fd)
             ch = sys.stdin.read(1)
+            if ch == "\x1b":
+                dr, _, _ = sys_select.select([sys.stdin], [], [], 0.05)
+                if dr:
+                    ch2 = sys.stdin.read(1)
+                    if ch2 == "[":
+                        dr2, _, _ = sys_select.select([sys.stdin], [], [], 0.05)
+                        if dr2:
+                            ch3 = sys.stdin.read(1)
+                            return f"\x1b[{ch3}"
+                    return f"\x1b{ch2}"
         finally:
-            termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+            termios.tcsetattr(fd, termios.TCSANOW, old_settings)
         return ch
         
     def kbhit() -> bool:
@@ -107,25 +117,12 @@ def get_key():
             raise KeyboardInterrupt
         return ch
     else:
-        import time
         ch = getch()
-        if ch == "\x1b":
-            # Wait up to 50ms for the next byte to arrive
-            for _ in range(5):
-                if kbhit():
-                    break
-                time.sleep(0.01)
-            if kbhit():
-                ch2 = getch()
-                if ch2 == "[":
-                    for _ in range(5):
-                        if kbhit():
-                            break
-                        time.sleep(0.01)
-                    if kbhit():
-                        ch3 = getch()
-                        return {"A": "UP", "B": "DOWN", "D": "LEFT", "C": "RIGHT"}.get(ch3)
-            return "ESC"
+        if ch == "\x1b[A": return "UP"
+        elif ch == "\x1b[B": return "DOWN"
+        elif ch == "\x1b[D": return "LEFT"
+        elif ch == "\x1b[C": return "RIGHT"
+        elif ch == "\x1b": return "ESC"
         if ch in ("\r", "\n"):
             return "ENTER"
         if ch == "\x03":
@@ -152,11 +149,9 @@ def get_text_input(prompt_text: str, default_val: str = "", is_masked: bool = Fa
             result = "".join(chars).strip()
             return result if result else default_val
             
-        elif ch == "\x1b":  # ESC or Arrow key
-            if sys.platform != "win32" and kbhit():
-                while kbhit():
-                    getch()
-                continue  # Ignore arrow key or escape sequence
+        elif ch.startswith("\x1b"):  # ESC or Arrow key
+            if ch != "\x1b":
+                continue  # Ignore arrow key sequence
             sys.stdout.write("\n")
             sys.stdout.flush()
             return "ESC"
@@ -200,11 +195,9 @@ def get_inline_input(is_masked: bool = False) -> str:
         ch = getch()
         if ch in ("\r", "\n"):
             break
-        elif ch == "\x1b": # ESC or Arrow key on Unix
-            if sys.platform != "win32" and kbhit():
-                while kbhit():
-                    getch()
-                continue
+        elif ch.startswith("\x1b"): # ESC or Arrow key on Unix
+            if ch != "\x1b":
+                continue # Ignore arrow key sequence
             val = "ESC"
             break
         elif sys.platform == "win32" and ch in ("\xe0", "\x00"): # Arrow/Special keys header on Windows
