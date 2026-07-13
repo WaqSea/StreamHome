@@ -87,12 +87,13 @@ def _run_ffmpeg_sync(task_id: str, cmd: list, duration_secs: float) -> tuple[boo
                 pass
         current_speed_str = "0 Mbps"
 
-        # Read carriage-return (\r) and newline (\n) delimited progress logs in real-time
+        # Read from raw binary stream buffer to bypass TextIOWrapper block buffering
         buffer = ""
         while True:
-            char = process.stderr.read(1)
-            if not char:
+            char_bytes = process.stderr.buffer.read(1)
+            if not char_bytes:
                 break
+            char = char_bytes.decode("utf-8", errors="ignore")
             if char in ("\r", "\n"):
                 line = buffer.strip()
                 buffer = ""
@@ -212,6 +213,9 @@ async def download_and_merge(
         cmd.extend(["-map", "0:v?", "-map", "0:a?", "-map", "0:s?", "-c", "copy", "-movflags", "+faststart"])
         
     cmd.append(abs_output_path)
+
+    # Initialize metrics immediately to show 0.0% progress in CLI TUI
+    update_task_metrics(task_id, 0.0, speed="Connecting...", eta="00:00:00", size="0 MB", force_write=True)
 
     loop = asyncio.get_running_loop()
     

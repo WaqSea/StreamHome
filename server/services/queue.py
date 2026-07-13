@@ -224,7 +224,7 @@ class DownloadQueueManager:
                 logger.info(f"[Queue Manager] Starting download/merge (Attempt {attempt}/{max_retries}) for task {task_id}...")
                 if attempt > 1:
                     from services.state import update_task_metrics
-                    update_task_metrics(task_id, 0.0, speed=f"Retrying ({attempt}/{max_retries})...", eta="00:00:00")
+                    update_task_metrics(task_id, 0.0, speed=f"Retrying ({attempt}/{max_retries})...", eta="00:00:00", force_write=True)
                 
                 # download_and_merge returns (bool, str) representing (success, error_reason)
                 success, error_reason = await download_and_merge(
@@ -258,7 +258,7 @@ class DownloadQueueManager:
                             await db.commit()
                 
                 from services.state import update_task_metrics
-                update_task_metrics(task_id, 99.9, speed="Uploading", eta="00:00:00")
+                update_task_metrics(task_id, 99.9, speed="Uploading", eta="00:00:00", force_write=True)
                 
                 local_dir = os.path.dirname(output_abs_path)
                 if media_type == "movie":

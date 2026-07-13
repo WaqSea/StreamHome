@@ -21,7 +21,7 @@ from config import config_dir
 
 _last_metrics_file_write = 0.0
 
-def update_task_metrics(task_id: str, progress: float, speed: str = "0 KB/s", eta: str = "00:00:00", size: str = "0 MB"):
+def update_task_metrics(task_id: str, progress: float, speed: str = "0 KB/s", eta: str = "00:00:00", size: str = "0 MB", force_write: bool = False):
     global _last_metrics_file_write
     ACTIVE_DOWNLOAD_METRICS[task_id] = {
         "progress": round(progress, 2),
@@ -30,9 +30,9 @@ def update_task_metrics(task_id: str, progress: float, speed: str = "0 KB/s", et
         "size": size
     }
     
-    # Throttle file writes to once every 1.0 seconds
+    # Throttle file writes to once every 1.0 seconds unless force_write is True
     now = time.time()
-    if now - _last_metrics_file_write >= 1.0:
+    if force_write or now - _last_metrics_file_write >= 1.0:
         _last_metrics_file_write = now
         try:
             metrics_file = os.path.join(config_dir, "temp", "download_metrics.json")
