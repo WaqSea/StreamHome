@@ -161,7 +161,7 @@ async def download_and_merge(
         cmd.extend(["-i", audio_url, "-c:v", "copy", "-c:a", "copy", "-movflags", "+faststart", "-map", "0:v:0", "-map", "1:a:0", "-shortest"])
     else:
         # faststart eklendi
-        cmd.extend(["-c", "copy", "-movflags", "+faststart"])
+        cmd.extend(["-map", "0:v?", "-map", "0:a?", "-map", "0:s?", "-c", "copy", "-movflags", "+faststart"])
         
     cmd.append(abs_output_path)
 
