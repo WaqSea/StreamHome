@@ -260,7 +260,8 @@ def get_inline_input(is_masked: bool = False) -> str:
 
 def update_env_file(key: str, value: str):
     """Write or update a key=value pair in the .env file."""
-    env_file = ".env"
+    cli_dir = os.path.dirname(os.path.abspath(__file__))
+    env_file = os.path.join(cli_dir, ".env")
     lines = []
     if os.path.exists(env_file):
         with open(env_file, "r") as f:
