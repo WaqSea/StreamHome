@@ -3,7 +3,7 @@ import uuid
 import time
 import asyncio
 from datetime import datetime
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status, Security, Request
 from fastapi.responses import StreamingResponse
