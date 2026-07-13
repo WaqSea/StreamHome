@@ -802,6 +802,11 @@ async def monitor_downloads():
                                 f"[dim]{size_val} @ {speed_val}[/dim]\n"
                                 f"[dim]ETA: {eta_val}[/dim]"
                             )
+                    elif t.status == "FAILED" and t.error_message:
+                        err_clean = t.error_message.replace("\n", " ").strip()
+                        if len(err_clean) > 28:
+                            err_clean = err_clean[:25] + "..."
+                        label = f"[bold bright_red]✗ Failed[/bold bright_red]\n[dim red]{err_clean}[/dim red]"
                     
                     title_display = (t.title or f"TMDB {t.tmdb_id}")[:26]
                     created_display = t.created_at[:10] if t.created_at else "—"
