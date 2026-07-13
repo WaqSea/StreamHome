@@ -289,7 +289,7 @@ def update_env_file(key: str, value: str):
 
 def draw_main_header():
     """Draw the main control center header."""
-    console.print(f"[bright_cyan]{'═' * 70}[/bright_cyan]")
+    
     console.print(Panel(
         "[bold white]THE PROJECT — SERVER CONTROL CENTER[/bold white]\n"
         "[dim]Strictly Secure Terminal-Only Administration Panel[/dim]",
@@ -357,7 +357,7 @@ async def configure_settings():
             return
             
         clear_screen()
-        console.print(f"[bright_cyan]{'═' * 70}[/bright_cyan]")
+        
         
         collected = {}
         
@@ -365,7 +365,7 @@ async def configure_settings():
         if choice == 0:
             while True:
                 clear_screen()
-                console.print(f"[bright_cyan]{'═' * 70}[/bright_cyan]")
+                
                 console.print(Panel("[bold white]💾 STORAGE SETTINGS CONFIGURATION[/bold white]", border_style="bright_yellow", width=68))
                 console.print()
                 
@@ -382,7 +382,7 @@ async def configure_settings():
                     break
                     
                 clear_screen()
-                console.print(f"[bright_cyan]{'═' * 70}[/bright_cyan]")
+                
                 
                 if sel == 0:
                     console.print(Panel("[bold white]⚙️ EDIT STORAGE ENGINE MODE[/bold white]", border_style="bright_yellow", width=68))
@@ -453,7 +453,7 @@ async def configure_settings():
                     break
                     
                 clear_screen()
-                console.print(f"[bright_cyan]{'═' * 70}[/bright_cyan]")
+                
                 
                 # Sub-Case 1: Generate Key
                 if key_choice == 0:
@@ -518,7 +518,7 @@ async def configure_settings():
 async def register_user():
     """Account registration flow with password hashing. Supports ESC aborting."""
     clear_screen()
-    console.print(f"[bright_cyan]{'═' * 70}[/bright_cyan]")
+    
     console.print(Panel(
         "[bold white]👤   ACCOUNT REGISTRATION PORTAL[/bold white]\n"
         "[dim italic]Press ESC during input to instantly abort and return to menu[/dim italic]",
@@ -591,7 +591,7 @@ async def register_user():
 
 async def reset_user_password():
     clear_screen()
-    console.print(f"[bright_cyan]{'═' * 70}[/bright_cyan]")
+    
     console.print(Panel("[bold white]🔑   RESET USER PASSWORD[/bold white]", border_style="bright_magenta", width=68))
     console.print()
     
@@ -624,7 +624,7 @@ async def reset_user_password():
 
 async def configure_user_2fa():
     clear_screen()
-    console.print(f"[bright_cyan]{'═' * 70}[/bright_cyan]")
+    
     console.print(Panel("[bold white]🛡️   CONFIGURE 2FA (TOTP) SETTINGS[/bold white]", border_style="bright_magenta", width=68))
     console.print()
     
@@ -717,7 +717,7 @@ async def monitor_downloads():
     try:
         while True:
             clear_screen()
-            console.print(f"[bright_cyan]{'═' * 70}[/bright_cyan]")
+            
             console.print(Panel(
                 "[bold white]📊   ACTIVE DOWNLOAD QUEUE & WORKERS (Auto-refreshing...)[/bold white]\n"
                 "[dim italic]Press ESC, Q or Enter at any time to return to Main Menu[/dim italic]",
@@ -865,7 +865,6 @@ async def monitor_downloads():
 async def remove_media_asset():
     """Interactive media asset deletion portal with database and filesystem removal."""
     clear_screen()
-    console.print(f"[bright_cyan]{'═' * 70}[/bright_cyan]")
     console.print(Panel(
         "[bold white]🗑️   REMOVE MEDIA ASSET PORTAL[/bold white]\n"
         "[dim italic]Completely delete media from database and disk[/dim italic]",
@@ -899,7 +898,7 @@ async def remove_media_asset():
             
         selected_movie = movies[choice]
         clear_screen()
-        console.print(f"[bright_cyan]{'═' * 70}[/bright_cyan]")
+        
         console.print(Panel(
             f"[bold white]⚠️   CONFIRM PERMANENT DELETION[/bold white]\n"
             f"[dim]Asset: [bold]{selected_movie.title}[/bold] ({selected_movie.release_year})[/dim]",
