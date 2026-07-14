@@ -252,6 +252,20 @@ export default function App() {
   };
 
   const handlePlayMovie = (movie: Movie) => {
+    // Prevent infinite buffering: if it's a series and no episode is selected, open details instead.
+    if (movie.type === "series" && !movie.activeEpisodeId) {
+      if (movie.episodes && movie.episodes.length > 0) {
+        movie.activeEpisodeId = movie.episodes[0].id;
+      } else {
+        setSelectedMovieForDetails(movie);
+        
+        const url = new URL(window.location.href);
+        url.searchParams.set("movie", movie.id);
+        window.history.pushState({}, "", url.pathname + url.search);
+        return;
+      }
+    }
+
     setActiveMovie(movie);
     setSelectedMovieForDetails(null);
 
