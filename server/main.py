@@ -20,6 +20,7 @@ from models import Movie, Episode, PlaybackSession, WatchlistItem, MovieResponse
 from config import settings
 from services.logger import logger
 from services.queue import queue_manager
+from services.hevc_compressor import hevc_compressor
 import services.state as state
 from routes.queue import router as queue_router
 from routes.auth import router as auth_router, get_current_user
@@ -42,6 +43,11 @@ async def lifespan(app: FastAPI):
         await init_db()
     except Exception as db_err:
         logger.error(f"[Lifespan Startup] Database initialization failed (server continuing): {db_err}")
+    
+    try:
+        settings.get_system_profile()
+    except Exception as pf_err:
+        logger.error(f"[Lifespan Startup] System profile generation failed: {pf_err}")
     
     # Check if TMDB credentials are set and show a warning if they are missing
     try:
@@ -99,6 +105,11 @@ async def lifespan(app: FastAPI):
         queue_manager.start()
     except Exception as q_start_err:
         logger.error(f"[Lifespan Startup] Error starting queue manager: {q_start_err}")
+
+    try:
+        hevc_compressor.start()
+    except Exception as h_start_err:
+        logger.error(f"[Lifespan Startup] Error starting hevc compressor: {h_start_err}")
 
     # 💾 DAILY BACKUP & SYNC SCHEDULER
     async def daily_backup_worker():
@@ -169,6 +180,11 @@ async def lifespan(app: FastAPI):
         queue_manager.stop()
     except Exception as q_stop_err:
         logger.error(f"[Lifespan Shutdown] Error stopping queue manager: {q_stop_err}")
+        
+    try:
+        hevc_compressor.stop()
+    except Exception as h_stop_err:
+        logger.error(f"[Lifespan Shutdown] Error stopping hevc compressor: {h_stop_err}")
     logger.info("[Server] Lifespan: Queue Manager stopped securely.")
 
 class ActivityTrackingMiddleware(BaseHTTPMiddleware):
@@ -738,17 +754,20 @@ async def delete_profile(profile_id: str, user = Depends(get_current_user)):
 class SystemSettingsRequest(APIModel):
     storage_engine: str
     rclone_remote_path: str
+    hevc_compression_mode: str = "auto"
 
 class SystemSettingsResponse(APIModel):
     storage_engine: str
     rclone_remote_path: str
+    hevc_compression_mode: str
 
 @app.get("/api/system/settings", response_model=SystemSettingsResponse)
 async def get_system_settings(user = Depends(get_current_user)):
     """Retrieves current server storage engine and Rclone settings."""
     return SystemSettingsResponse(
         storage_engine=settings.STORAGE_ENGINE,
-        rclone_remote_path=settings.RCLONE_REMOTE_PATH
+        rclone_remote_path=settings.RCLONE_REMOTE_PATH,
+        hevc_compression_mode=settings.HEVC_COMPRESSION_MODE
     )
 
 @app.post("/api/system/settings", response_model=SystemSettingsResponse)
@@ -757,13 +776,18 @@ async def save_system_settings(req: SystemSettingsRequest, user = Depends(get_cu
     if req.storage_engine not in ["LOCAL", "CLOUD"]:
         raise HTTPException(status_code=400, detail="Invalid storage engine value. Must be LOCAL or CLOUD.")
     
+    if req.hevc_compression_mode not in ["auto", "on", "off"]:
+        raise HTTPException(status_code=400, detail="Invalid hevc compression mode. Must be auto, on, or off.")
+    
     settings.STORAGE_ENGINE = req.storage_engine
     settings.RCLONE_REMOTE_PATH = req.rclone_remote_path
+    settings.HEVC_COMPRESSION_MODE = req.hevc_compression_mode
     settings.save_to_json()
     
     return SystemSettingsResponse(
         storage_engine=settings.STORAGE_ENGINE,
-        rclone_remote_path=settings.RCLONE_REMOTE_PATH
+        rclone_remote_path=settings.RCLONE_REMOTE_PATH,
+        hevc_compression_mode=settings.HEVC_COMPRESSION_MODE
     )
 
 

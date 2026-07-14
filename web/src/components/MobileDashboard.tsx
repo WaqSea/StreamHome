@@ -567,6 +567,7 @@ export default function MobileDashboard({
   const [isRcloneEnabled, setIsRcloneEnabled] = useState<boolean>(false);
   const [rcloneRemotePath, setRcloneRemotePath] = useState<string>("gdrive:media");
   const [isRcloneSaving, setIsRcloneSaving] = useState<boolean>(false);
+  const [hevcCompressionMode, setHevcCompressionMode] = useState<string>("auto");
 
   // Fetch rclone cloud storage settings from backend
   useEffect(() => {
@@ -580,6 +581,7 @@ export default function MobileDashboard({
           const data = await res.json();
           setIsRcloneEnabled(data.storageEngine === "CLOUD");
           setRcloneRemotePath(data.rcloneRemotePath || "gdrive:media");
+          setHevcCompressionMode(data.hevcCompressionMode || "auto");
         }
       } catch (err) {
         console.error("Failed to fetch server settings:", err);
@@ -588,7 +590,7 @@ export default function MobileDashboard({
     fetchSystemSettings();
   }, []);
 
-  const handleUpdateSystemSettings = async (enabled: boolean, path: string) => {
+  const handleUpdateSystemSettings = async (enabled: boolean, path: string, mode: string = hevcCompressionMode) => {
     setIsRcloneSaving(true);
     try {
       const token = localStorage.getItem("stream_access_token");
@@ -601,13 +603,15 @@ export default function MobileDashboard({
         headers: headers,
         body: JSON.stringify({
           storageEngine: enabled ? "CLOUD" : "LOCAL",
-          rcloneRemotePath: path
+          rcloneRemotePath: path,
+          hevcCompressionMode: mode
         })
       });
       if (res.ok) {
         const data = await res.json();
         setIsRcloneEnabled(data.storageEngine === "CLOUD");
         setRcloneRemotePath(data.rcloneRemotePath);
+        setHevcCompressionMode(data.hevcCompressionMode);
       }
     } catch (err) {
       console.error("Failed to save server settings:", err);
@@ -2060,7 +2064,7 @@ export default function MobileDashboard({
                         <input 
                           type="checkbox" 
                           checked={isRcloneEnabled} 
-                          onChange={(e) => handleUpdateSystemSettings(e.target.checked, rcloneRemotePath)}
+                          onChange={(e) => handleUpdateSystemSettings(e.target.checked, rcloneRemotePath, hevcCompressionMode)}
                           className="sr-only peer" 
                         />
                         <div className="w-9 h-5 bg-zinc-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-zinc-400 after:border-zinc-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-red-600 peer-checked:after:bg-white"></div>
@@ -2076,14 +2080,14 @@ export default function MobileDashboard({
                           type="text" 
                           value={rcloneRemotePath}
                           onChange={(e) => setRcloneRemotePath(e.target.value)}
-                          onBlur={(e) => handleUpdateSystemSettings(isRcloneEnabled, e.target.value)}
-                          className="flex-1 bg-zinc-950 border border-zinc-800 rounded p-2 text-xs text-white outline-none focus:border-[var(--theme-accent)] transition font-mono"
+                          onBlur={(e) => handleUpdateSystemSettings(isRcloneEnabled, e.target.value, hevcCompressionMode)}
+                          className="flex-1 bg-zinc-950 border border-zinc-800 rounded p-2.5 text-sm text-white outline-none focus:border-[var(--theme-accent)] transition font-mono"
                           placeholder="e.g. gdrive:media"
                         />
                         <button
                           type="button"
-                          onClick={() => handleUpdateSystemSettings(isRcloneEnabled, rcloneRemotePath)}
-                          className="px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded text-xs transition cursor-pointer font-bold"
+                          onClick={() => handleUpdateSystemSettings(isRcloneEnabled, rcloneRemotePath, hevcCompressionMode)}
+                          className="px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded text-sm transition font-bold"
                         >
                           Save Remote
                         </button>
@@ -2179,6 +2183,32 @@ export default function MobileDashboard({
                     <div>Billing Period: <span className="text-zinc-300">Monthly ($0.00 Self-Hosted)</span></div>
                     <div>Next Cycle: <span className="text-zinc-300">August 02, 2026</span></div>
                   </div>
+                </div>
+              </div>
+
+              {/* Library Optimization */}
+              <div className="bg-[#121212] border border-zinc-800 rounded-xl p-5 space-y-6">
+                <h3 className="text-sm font-bold uppercase tracking-wider text-zinc-200 border-b border-zinc-800 pb-3">
+                  Library Optimization
+                </h3>
+                
+                <div className="space-y-1.5">
+                  <label className="text-xs uppercase font-extrabold text-zinc-400 tracking-wider">Background HEVC Compression</label>
+                  <select 
+                    value={hevcCompressionMode}
+                    onChange={(e) => {
+                      setHevcCompressionMode(e.target.value);
+                      handleUpdateSystemSettings(isRcloneEnabled, rcloneRemotePath, e.target.value);
+                    }}
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded p-3 text-sm text-white outline-none focus:border-[var(--theme-accent)] transition cursor-pointer"
+                  >
+                    <option value="auto">Auto (Hardware Based)</option>
+                    <option value="on">Always On (Aggressive)</option>
+                    <option value="off">Always Off (Disable)</option>
+                  </select>
+                  <p className="text-xs text-zinc-500 text-left mt-2">
+                    Silently reduces disk space by 50% using background transcoding when the server is idle. 'Auto' will only run if your server has 4+ CPU Cores.
+                  </p>
                 </div>
               </div>
 

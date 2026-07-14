@@ -50,6 +50,9 @@ class Settings:
     # Automated Update System
     AUTO_UPDATE_ENABLED: bool = os.getenv("AUTO_UPDATE_ENABLED", "False").lower() in ("true", "1", "yes")
 
+    # Library Optimization System
+    HEVC_COMPRESSION_MODE: str = os.getenv("HEVC_COMPRESSION_MODE", "auto")
+
     # Ingestion Notification Settings
     VIDEO_SENDER_API_URL: Optional[str] = os.getenv("VIDEO_SENDER_API_URL", None)
 
@@ -63,6 +66,7 @@ class Settings:
                     self.RCLONE_REMOTE_PATH = data.get("rclone_remote_path", self.RCLONE_REMOTE_PATH)
                     self.BACKUP_ENABLED = data.get("backup_enabled", self.BACKUP_ENABLED)
                     self.AUTO_UPDATE_ENABLED = data.get("auto_update_enabled", self.AUTO_UPDATE_ENABLED)
+                    self.HEVC_COMPRESSION_MODE = data.get("hevc_compression_mode", self.HEVC_COMPRESSION_MODE)
             except Exception as e:
                 print(f"Error loading settings.json: {e}")
 
@@ -74,10 +78,22 @@ class Settings:
                     "storage_engine": self.STORAGE_ENGINE,
                     "rclone_remote_path": self.RCLONE_REMOTE_PATH,
                     "backup_enabled": self.BACKUP_ENABLED,
-                    "auto_update_enabled": self.AUTO_UPDATE_ENABLED
+                    "auto_update_enabled": self.AUTO_UPDATE_ENABLED,
+                    "hevc_compression_mode": self.HEVC_COMPRESSION_MODE
                 }, f, indent=2, ensure_ascii=False)
         except Exception as e:
             print(f"Error saving settings.json: {e}")
+
+    def get_system_profile(self) -> dict:
+        profile_path = os.path.join(config_dir, "system_profile.json")
+        cores = os.cpu_count() or 2
+        profile = {"cpu_cores": cores}
+        try:
+            with open(profile_path, "w", encoding="utf-8") as f:
+                json.dump(profile, f, indent=2)
+        except Exception:
+            pass
+        return profile
 
 settings = Settings()
 settings.load_from_json()

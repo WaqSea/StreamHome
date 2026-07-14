@@ -45,6 +45,7 @@ class Movie(SQLModel, table=True):
     vote_average: Optional[float] = Field(default=7.5)
     vote_count: Optional[int] = Field(default=100)
     skip_markers_str: Optional[str] = Field(default="{}")  # Serialized JSON Dict
+    hevc_compressed: bool = Field(default=False)
 
     @property
     def genres(self) -> List[str]:
@@ -118,6 +119,7 @@ class Episode(SQLModel, table=True):
     languages_str: Optional[str] = Field(default='["en"]')  # Serialized JSON List[str]
     subtitles_str: Optional[str] = Field(default="[]")  # Serialized JSON List[Dict[str, str]]
     skip_markers_str: Optional[str] = Field(default="{}")  # Serialized JSON Dict
+    hevc_compressed: bool = Field(default=False)
 
     @property
     def languages(self) -> List[str]:
