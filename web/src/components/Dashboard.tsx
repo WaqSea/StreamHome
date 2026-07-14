@@ -1327,19 +1327,19 @@ export default function Dashboard({
               onClick={() => { setSearchQuery(""); onTabChange("movies"); }}
               className={`cursor-pointer ${getTabClass("movies")}`}
             >
-              {activeProfileTheme === "gemini" ? "[movies]" : activeProfileTheme === "prime" ? "Store" : "Movies"}
+              {activeProfileTheme === "gemini" ? "[movies]" : activeProfileTheme === "prime" ? "Movies" : "Movies"}
             </button>
             <button
               onClick={() => { setSearchQuery(""); onTabChange("series"); }}
               className={`cursor-pointer ${getTabClass("series")}`}
             >
-              {activeProfileTheme === "gemini" ? "[series]" : activeProfileTheme === "prime" ? "Channels" : "Series"}
+              {activeProfileTheme === "gemini" ? "[series]" : activeProfileTheme === "prime" ? "Tv Shows" : "Series"}
             </button>
             <button
               onClick={() => { setSearchQuery(""); onTabChange("mylist"); }}
               className={`cursor-pointer ${getTabClass("mylist")}`}
             >
-              {activeProfileTheme === "gemini" ? "[db_list]" : activeProfileTheme === "prime" ? "My Stuff" : activeProfileTheme === "apple" ? "Up Next" : "My List"}
+              {activeProfileTheme === "gemini" ? "[db_list]" : activeProfileTheme === "prime" ? "My List" : activeProfileTheme === "apple" ? "WatchList" : "My List"}
             </button>
             <button
               onClick={() => { setSearchQuery(""); onTabChange("downloads"); }}
@@ -3019,14 +3019,12 @@ export default function Dashboard({
                                       </h5>
                                       
                                       {/* Episode on-server indicator */}
-                                      {episode.videoUrl && (
-                                        <div
-                                          className="p-1.5 bg-black/60 rounded border border-zinc-800 flex items-center justify-center"
-                                          title="Available on server"
-                                        >
-                                          <Database className="w-3.5 h-3.5 text-emerald-400" />
-                                        </div>
-                                      )}
+                                      <div
+                                        className="p-1.5 bg-black/60 rounded border border-zinc-800 flex items-center justify-center"
+                                        title={episode.videoUrl ? "Available on server" : "Missing from server"}
+                                      >
+                                        <Database className={`w-3.5 h-3.5 ${episode.videoUrl ? 'text-emerald-400' : 'text-zinc-600'}`} />
+                                      </div>
                                     </div>
                                     <p className="text-[11px] text-zinc-400 font-normal leading-relaxed line-clamp-2">
                                       {episode.description}

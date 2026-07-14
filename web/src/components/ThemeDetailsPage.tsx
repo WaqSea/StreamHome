@@ -669,15 +669,13 @@ export default function ThemeDetailsPage({
                         <h4 className="text-xs sm:text-sm font-extrabold text-white group-hover/ep:text-sky-400 transition">
                           Episode {episode.episodeNumber}: {episode.title}
                         </h4>
-                        {/* Episode PWA local download control */}
-                        {episode.videoUrl && (
-                          <div
-                            className="p-1.5 bg-black/60 rounded border border-zinc-800 flex items-center justify-center"
-                            title="Available on server"
-                          >
-                            <Database className="w-3.5 h-3.5 text-emerald-400" />
-                          </div>
-                        )}
+                        {/* Episode on-server indicator */}
+                        <div
+                          className="p-1.5 bg-zinc-900 rounded border border-zinc-800 flex items-center justify-center"
+                          title={episode.videoUrl ? "Available on server" : "Missing from server"}
+                        >
+                          <Database className={`w-3.5 h-3.5 ${episode.videoUrl ? 'text-emerald-500' : 'text-zinc-600'}`} />
+                        </div>
                       </div>
                       <p className="text-xs text-zinc-400 font-normal leading-relaxed line-clamp-3">
                         {episode.description}
@@ -1007,14 +1005,12 @@ export default function ThemeDetailsPage({
                           S{episode.seasonNumber} E{episode.episodeNumber} • {episode.title}
                         </h4>
                         {/* Episode PWA local download control */}
-                        {episode.videoUrl && (
-                          <div
-                            className="p-1.5 bg-black/60 rounded border border-zinc-800 flex items-center justify-center"
-                            title="Available on server"
-                          >
-                            <Database className="w-3.5 h-3.5 text-emerald-400" />
-                          </div>
-                        )}
+                        <div
+                          className="p-1.5 bg-black/60 rounded border border-zinc-800 flex items-center justify-center"
+                          title={episode.videoUrl ? "Available on server" : "Missing from server"}
+                        >
+                          <Database className={`w-3.5 h-3.5 ${episode.videoUrl ? 'text-emerald-400' : 'text-zinc-600'}`} />
+                        </div>
                       </div>
                       <p className="text-xs text-zinc-400 font-light leading-relaxed line-clamp-2">
                         {episode.description}
@@ -1339,14 +1335,12 @@ export default function ThemeDetailsPage({
                         TRK_0{episode.episodeNumber}: {episode.title}
                       </h4>
                       {/* Episode PWA local download control */}
-                      {episode.videoUrl && (
-                        <div
-                          className="p-1.5 bg-black/60 rounded border border-zinc-800 flex items-center justify-center"
-                          title="Available on server"
-                        >
-                          <Database className="w-3.5 h-3.5 text-emerald-400" />
-                        </div>
-                      )}
+                      <div
+                        className="p-1.5 bg-black/60 rounded border border-zinc-800 flex items-center justify-center"
+                        title={episode.videoUrl ? "Available on server" : "Missing from server"}
+                      >
+                        <Database className={`w-3.5 h-3.5 ${episode.videoUrl ? 'text-emerald-400' : 'text-zinc-600'}`} />
+                      </div>
                     </div>
                     <p className="text-xs text-zinc-500 font-light leading-relaxed line-clamp-3">
                       {episode.description}
