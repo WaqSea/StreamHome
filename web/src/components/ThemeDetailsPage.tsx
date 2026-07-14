@@ -58,12 +58,16 @@ export default function ThemeDetailsPage({
       if (selectedMovieForDetails) {
         if (selectedMovieForDetails.type === "series") {
           selectedMovieForDetails.episodes?.forEach(ep => {
-            if (ep.videoUrl && cachedUrls.some(u => u.endsWith(ep.videoUrl))) {
+            if (ep.videoUrl && cachedUrls.some(u => {
+              try { return u.endsWith(ep.videoUrl) || decodeURI(u).endsWith(ep.videoUrl); } catch { return u.endsWith(ep.videoUrl); }
+            })) {
               cachedIds.push(ep.id);
             }
           });
         } else {
-          if (selectedMovieForDetails.videoUrl && cachedUrls.some(u => u.endsWith(selectedMovieForDetails.videoUrl))) {
+          if (selectedMovieForDetails.videoUrl && cachedUrls.some(u => {
+            try { return u.endsWith(selectedMovieForDetails.videoUrl) || decodeURI(u).endsWith(selectedMovieForDetails.videoUrl); } catch { return u.endsWith(selectedMovieForDetails.videoUrl); }
+          })) {
             cachedIds.push(selectedMovieForDetails.id);
           }
         }
