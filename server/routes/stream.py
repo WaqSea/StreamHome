@@ -96,6 +96,10 @@ async def cloud_stream_generator(target_remote: str, start: int, count: Optional
 
 async def transcode_generator(input_path: str, height: int, start_sec: float, media_id: str, quality: str, audio_track_idx: int = 0, should_cache: bool = True):
     import aiofiles
+    # Only cache if we're generating from the beginning
+    if start_sec > 0:
+        should_cache = False
+        
     # Resolve ffmpeg binary path dynamically
     ffmpeg_path = shutil.which("ffmpeg") or r"C:\ffmpeg\bin\ffmpeg.exe"
     
@@ -501,8 +505,41 @@ async def stream_media(
     # 3. Transcode Cache Check
     cache_file = os.path.join(settings.TEMP_DIR, "transcode_cache", f"{media_id}_{quality}.mp4")
     if os.path.exists(cache_file):
-        logger.info(f"[Streaming Router] Serving cached transcode file: {cache_file}")
-        return FileResponse(cache_file, media_type="video/mp4")
+        if start > 0:
+            logger.info(f"[Streaming Router] Seeking into cached transcode file: {cache_file} at {start}s")
+            # We must output an MP4 stream starting at `start` to satisfy the frontend's expectation
+            ffmpeg_path = shutil.which("ffmpeg") or r"C:\ffmpeg\bin\ffmpeg.exe"
+            cmd = [
+                ffmpeg_path,
+                "-y",
+                "-ss", str(start),
+                "-i", cache_file,
+                "-c", "copy",
+                "-f", "mp4",
+                "-movflags", "frag_keyframe+empty_moov+faststart",
+                "pipe:1"
+            ]
+            async def cache_seek_generator():
+                process = await asyncio.create_subprocess_exec(
+                    *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL
+                )
+                try:
+                    while True:
+                        chunk = await process.stdout.read(64 * 1024)
+                        if not chunk: break
+                        yield chunk
+                finally:
+                    try: process.kill()
+                    except: pass
+            
+            return StreamingResponse(
+                cache_seek_generator(),
+                media_type="video/mp4",
+                headers={"Content-Type": "video/mp4", "Cache-Control": "no-cache", "Connection": "keep-alive"}
+            )
+        else:
+            logger.info(f"[Streaming Router] Serving cached transcode file: {cache_file}")
+            return FileResponse(cache_file, media_type="video/mp4")
         
     height = 720
     if quality == "1080p": height = 1080
