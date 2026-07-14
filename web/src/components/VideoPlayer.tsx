@@ -282,9 +282,7 @@ export default function VideoPlayer({ movie: originalMovie, activeProfile, onBac
       
       if (prevQuality.current !== selectedQuality || prevAudio.current !== selectedAudioTrack) {
         const isTranscoded = selectedQuality !== "Source" && selectedQuality !== sourceQualityLabel;
-        const newSrc = !isTranscoded
-          ? `${serverRoot}${movie.videoUrl}`
-          : `${apiBaseUrl}/stream/${mediaId}?quality=${selectedQuality}&audio_track=${selectedAudioTrack}&start=${currentPos}${tokenQuery}`;
+        const newSrc = `${apiBaseUrl}/stream/${mediaId}?quality=${selectedQuality}&audio_track=${selectedAudioTrack}&start=${currentPos}${tokenQuery}`;
           
         if (isTranscoded) transcodeOffsetRef.current = currentPos;
           

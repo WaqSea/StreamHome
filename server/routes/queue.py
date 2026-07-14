@@ -12,7 +12,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from db import engine
-from models import DownloadTask, DownloadAddRequest
+from models import DownloadTask, DownloadAddRequest, Movie, Episode
 from config import settings
 from services.queue import queue_manager
 from services.state import ACTIVE_DOWNLOAD_METRICS, cancel_and_kill_process
@@ -104,6 +104,83 @@ async def add_movie(payload: DownloadAddRequest, token: str = Depends(verify_tok
             created_at=datetime.utcnow().isoformat()
         )
         db.add(new_task)
+        
+        # Instant Cataloging: Add to Movie/Episode immediately with external metadata/video
+        if payload.media_type == "movie":
+            movie_id = f"m_{payload.tmdb_id}"
+            movie = await db.get(Movie, movie_id)
+            if not movie:
+                movie = Movie(
+                    id=movie_id,
+                    title=meta.get("title", media_title),
+                    description=meta.get("description", ""),
+                    thumbnail_url=meta.get("thumbnailUrl", ""),
+                    banner_url=meta.get("bannerUrl", ""),
+                    video_url=payload.video_url, # External proxy
+                    duration=meta.get("duration", "2h"),
+                    release_year=meta.get("releaseYear", 2026),
+                    rating=meta.get("rating", "PG-13"),
+                    director=meta.get("director", "Unknown"),
+                    original_language=payload.language or meta.get("originalLanguage", "en"),
+                    type="movie",
+                    quality=payload.quality or "Source",
+                    vote_average=meta.get("vote_average", 7.5),
+                    vote_count=meta.get("vote_count", 100)
+                )
+                movie.genres = meta.get("genres", [])
+                movie.cast = meta.get("cast", [])
+                db.add(movie)
+            else:
+                movie.video_url = payload.video_url
+                db.add(movie)
+        else:
+            show_id = f"tv_{payload.tmdb_id}"
+            show = await db.get(Movie, show_id)
+            if not show:
+                show = Movie(
+                    id=show_id,
+                    title=meta.get("title", media_title),
+                    description=meta.get("description", ""),
+                    thumbnail_url=meta.get("thumbnailUrl", ""),
+                    banner_url=meta.get("bannerUrl", ""),
+                    video_url="",
+                    duration=meta.get("duration", "45m"),
+                    release_year=meta.get("releaseYear", 2026),
+                    rating=meta.get("rating", "TV-14"),
+                    director=meta.get("director", "Various"),
+                    original_language=payload.language or meta.get("originalLanguage", "en"),
+                    type="series",
+                    vote_average=meta.get("vote_average", 7.5),
+                    vote_count=meta.get("vote_count", 100)
+                )
+                show.genres = meta.get("genres", [])
+                show.cast = meta.get("cast", [])
+                db.add(show)
+                
+            if payload.season is not None and payload.episode is not None:
+                ep_id = f"ep_{payload.tmdb_id}_s{payload.season}_e{payload.episode}"
+                ep_entry = await db.get(Episode, ep_id)
+                ep_meta = meta.get("episode_detail", {})
+                ep_title = ep_meta.get("title", f"Episode {payload.episode}")
+                ep_desc = ep_meta.get("description", f"Season {payload.season}, Episode {payload.episode}")
+                if not ep_entry:
+                    ep_entry = Episode(
+                        id=ep_id,
+                        movie_id=show_id,
+                        episode_number=payload.episode,
+                        season_number=payload.season,
+                        title=ep_title,
+                        description=ep_desc,
+                        thumbnail_url=ep_meta.get("thumbnailUrl", ""),
+                        video_url=payload.video_url, # External proxy
+                        duration=ep_meta.get("duration", "45m"),
+                        quality=payload.quality or "Source"
+                    )
+                    db.add(ep_entry)
+                else:
+                    ep_entry.video_url = payload.video_url
+                    db.add(ep_entry)
+
         await db.commit()
         await db.refresh(new_task)
 

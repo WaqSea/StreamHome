@@ -8,7 +8,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from db import engine, get_session
-from models import Movie, Episode
+from models import Movie, Episode, DownloadTask
 from config import settings
 from services.logger import logger
 from routes.auth import get_current_user
@@ -494,8 +494,67 @@ async def stream_media(
                         status_code=200,
                         headers=headers
                     )
-        
-        raise HTTPException(status_code=404, detail=f"Media file not found on disk: {abs_path}")
+
+        # Fallback 2: Check if it's currently downloading and we can proxy the external URL
+        tmdb_id_str = None
+        if media_id.startswith("m_"):
+            tmdb_id_str = media_id[2:]
+        elif media_id.startswith("ep_"):
+            parts = media_id.split("_")
+            if len(parts) >= 2:
+                tmdb_id_str = parts[1]
+                
+        if tmdb_id_str and tmdb_id_str.isdigit():
+            tmdb_id = int(tmdb_id_str)
+            stmt = select(DownloadTask).where(DownloadTask.tmdb_id == tmdb_id).order_by(DownloadTask.created_at.desc())
+            res = await db.execute(stmt)
+            task = res.scalars().first()
+            
+            if task and task.status in ["PENDING", "DOWNLOADING", "MERGING"] and task.video_url.startswith("http"):
+                # Seamless Proxy to external URL
+                if not quality or quality == "Source":
+                    import httpx
+                    range_header = request.headers.get("range")
+                    proxy_headers = {}
+                    if range_header:
+                        proxy_headers["Range"] = range_header
+                    
+                    client = httpx.AsyncClient(follow_redirects=True)
+                    req = client.build_request("GET", task.video_url, headers=proxy_headers)
+                    try:
+                        resp = await client.send(req, stream=True)
+                    except Exception as e:
+                        await client.aclose()
+                        raise HTTPException(status_code=502, detail=f"Proxy error: {e}")
+                        
+                    resp_headers = {
+                        "Accept-Ranges": "bytes",
+                        "Content-Type": resp.headers.get("Content-Type", "video/mp4"),
+                    }
+                    for h in ["Content-Length", "Content-Range"]:
+                        if h in resp.headers:
+                            resp_headers[h] = resp.headers[h]
+                            
+                    async def proxy_streamer():
+                        try:
+                            async for chunk in resp.aiter_bytes(chunk_size=64 * 1024):
+                                yield chunk
+                        finally:
+                            await resp.aclose()
+                            await client.aclose()
+                            
+                    return StreamingResponse(
+                        proxy_streamer(),
+                        status_code=resp.status_code,
+                        headers=resp_headers
+                    )
+                else:
+                    # For transcoded streams, feed the external URL to FFmpeg
+                    abs_path = task.video_url
+            else:
+                raise HTTPException(status_code=404, detail=f"Media file not found on disk: {abs_path}")
+        else:
+            raise HTTPException(status_code=404, detail=f"Media file not found on disk: {abs_path}")
         
     # 2. Check quality transcode requirements
     if not quality or quality == "Source":
