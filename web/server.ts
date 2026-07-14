@@ -11,11 +11,11 @@ async function startServer() {
 
   // Proxy /api and /media requests to the live Python FastAPI backend
   app.use("/api", createProxyMiddleware({
-    target: "http://localhost:8000/api",
+    target: "http://127.0.0.1:8000/api",
     changeOrigin: true
   }));
   app.use("/media", createProxyMiddleware({
-    target: "http://localhost:8000/media",
+    target: "http://127.0.0.1:8000/media",
     changeOrigin: true
   }));
 
