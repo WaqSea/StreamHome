@@ -747,18 +747,18 @@ export default function ProfileSelector({ profiles, setProfiles, onSelectProfile
                   )}
                 </div>
 
-                <div className="pt-2 flex gap-3">
+                <div className="pt-2 flex flex-col sm:flex-row gap-3">
                   <button
                     type="button"
                     onClick={() => { setEditingProfile(null); setIsEditModalOpen(false); }}
-                    className="w-1/3 bg-zinc-900 hover:bg-zinc-800 text-zinc-350 font-semibold py-2.5 rounded-lg text-xs uppercase tracking-wider transition border border-zinc-800 flex items-center justify-center"
+                    className="w-full sm:w-1/3 bg-zinc-900 hover:bg-zinc-800 text-zinc-350 font-semibold py-2.5 rounded-lg text-xs uppercase tracking-wider transition border border-zinc-800 flex items-center justify-center"
                   >
                     Cancel
                   </button>
                   <button
                     type="button"
                     onClick={() => handleDeleteProfile(editingProfile.id)}
-                    className="w-1/3 bg-zinc-950 hover:bg-red-950/20 border border-red-950/40 text-red-500 font-semibold py-2.5 rounded-lg text-xs uppercase tracking-wider transition flex items-center justify-center space-x-1"
+                    className="w-full sm:w-1/3 bg-zinc-950 hover:bg-red-950/20 border border-red-950/40 text-red-500 font-semibold py-2.5 rounded-lg text-xs uppercase tracking-wider transition flex items-center justify-center space-x-1"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                     <span>Delete</span>

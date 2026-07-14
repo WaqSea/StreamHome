@@ -115,7 +115,7 @@ export default function LoginScreen({ onLoginSuccess, apiBaseUrl }: LoginScreenP
       {/* Immersive background decoration */}
       <div className="absolute inset-0 bg-radial-gradient from-red-600/5 via-transparent to-transparent pointer-events-none" />
 
-      <div className="w-full max-w-md bg-[#0a0a0a] border border-zinc-800 rounded-xl p-8 shadow-2xl relative z-10 space-y-6">
+      <div className="w-full max-w-md bg-[#0a0a0a] border border-zinc-800 rounded-xl p-6 md:p-8 shadow-2xl relative z-10 space-y-6">
         <div className="text-center space-y-2">
           <div className="inline-flex p-3 bg-red-600/10 border border-red-500/20 text-[#E50914] rounded-full mb-2">
             {requires2fa ? <Shield className="w-8 h-8" /> : <Lock className="w-8 h-8" />}

@@ -925,7 +925,7 @@ export default function VideoPlayer({ movie: originalMovie, activeProfile, onBac
                   step="0.1"
                   value={currentTime}
                   onChange={handleSeekChange}
-                  className="w-full h-1.5 bg-zinc-700 rounded-lg appearance-none cursor-pointer accent-red-600 focus:outline-none focus:ring-0 active:accent-red-700"
+                  className="w-full h-3 md:h-1.5 bg-zinc-700 rounded-lg appearance-none cursor-pointer accent-red-600 focus:outline-none focus:ring-0 active:accent-red-700"
                   style={{
                     background: `linear-gradient(to right, #E50914 0%, #E50914 ${
                       duration ? (currentTime / duration) * 100 : 0
