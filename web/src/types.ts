@@ -19,6 +19,7 @@ export interface Episode {
   quality?: string;
   languages?: string[];
   subtitles?: { language: string; ext: string }[];
+  skipMarkers?: Record<string, { start_ms: number | null; end_ms: number | null }[]>;
 }
 
 export interface Movie {
@@ -42,6 +43,7 @@ export interface Movie {
   activeEpisodeId?: string;
   activeEpisodeNumber?: number;
   activeSeasonNumber?: number;
+  skipMarkers?: Record<string, { start_ms: number | null; end_ms: number | null }[]>;
 }
 
 export interface PlaybackSession {

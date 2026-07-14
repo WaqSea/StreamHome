@@ -44,6 +44,7 @@ export default function MobileVideoPlayer({ movie: originalMovie, activeProfile,
     quality: activeEpisode?.quality || originalMovie.quality || "Source",
     languages: activeEpisode?.languages || originalMovie.languages || ["en"],
     subtitles: activeEpisode?.subtitles || originalMovie.subtitles || [],
+    skipMarkers: activeEpisode?.skipMarkers || originalMovie.skipMarkers || {},
   };
 
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -58,6 +59,7 @@ export default function MobileVideoPlayer({ movie: originalMovie, activeProfile,
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [currentTime, setCurrentTime] = useState<number>(0);
   const [duration, setDuration] = useState<number>(0);
+  const [activeSkipAction, setActiveSkipAction] = useState<{ type: string, label: string, skipTo: number | null } | null>(null);
   const [volume, setVolume] = useState<number>(1);
   const [isMuted, setIsMuted] = useState<boolean>(false);
   const [playbackRate, setPlaybackRate] = useState<number>(1);
@@ -470,7 +472,7 @@ export default function MobileVideoPlayer({ movie: originalMovie, activeProfile,
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [duration, volume, isMuted, isPlaying, onBack]);
+  }, [duration, volume, isMuted, isPlaying, onBack, activeSkipAction]);
 
   const handlePlay = () => {
     setIsPlaying(true);
@@ -558,6 +560,45 @@ export default function MobileVideoPlayer({ movie: originalMovie, activeProfile,
          actualTime += transcodeOffsetRef.current;
       }
       setCurrentTime(actualTime);
+
+      // Check skip markers
+      if (movie.skipMarkers) {
+        const actualTimeMs = actualTime * 1000;
+        let foundSkip = false;
+
+        // Auto-finish on credits
+        if (movie.skipMarkers.credits && movie.skipMarkers.credits.length > 0) {
+          const creditsStart = movie.skipMarkers.credits[0].start_ms;
+          if (creditsStart !== null && actualTimeMs >= creditsStart) {
+             handleVideoEnded();
+             return;
+          }
+        }
+
+        const skipTypes = [
+          { key: 'intro', label: 'Skip Intro' },
+          { key: 'recap', label: 'Skip Recap' },
+          { key: 'preview', label: 'Skip Preview' }
+        ];
+
+        for (const st of skipTypes) {
+          const markers = movie.skipMarkers[st.key];
+          if (markers && markers.length > 0) {
+            for (const m of markers) {
+              if (m.start_ms !== null && m.end_ms !== null && actualTimeMs >= m.start_ms && actualTimeMs < m.end_ms) {
+                setActiveSkipAction({ type: st.key, label: st.label, skipTo: m.end_ms / 1000 });
+                foundSkip = true;
+                break;
+              }
+            }
+          }
+          if (foundSkip) break;
+        }
+
+        if (!foundSkip && activeSkipAction) {
+          setActiveSkipAction(null);
+        }
+      }
     }
   };
 
@@ -946,12 +987,36 @@ export default function MobileVideoPlayer({ movie: originalMovie, activeProfile,
                 <div className="flex items-center space-x-4 md:space-x-6">
                   {/* Play / Pause */}
                   <button
-                    onClick={handlePlayPause}
+                    onClick={togglePlay}
                     className="text-white hover:text-red-500 transition-colors p-1.5 hover:bg-white/10 rounded-full cursor-pointer"
                     id="player-play-pause-btn"
                   >
                     {isPlaying ? <Pause className="w-6 h-6 fill-current" /> : <Play className="w-6 h-6 fill-current" />}
                   </button>
+
+                  {/* Skip Action Button (Mobile Square overlay) */}
+                  <AnimatePresence>
+                    {activeSkipAction && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: 10 }}
+                        className="absolute bottom-20 right-4 z-50"
+                      >
+                        <button
+                          onClick={() => {
+                            if (activeSkipAction.skipTo !== null) {
+                              performSeek(activeSkipAction.skipTo);
+                              setActiveSkipAction(null);
+                            }
+                          }}
+                          className="bg-white/20 backdrop-blur-md border border-white/30 text-white w-14 h-14 rounded-xl flex items-center justify-center font-bold shadow-lg text-xs text-center leading-tight active:scale-95 transition-transform"
+                        >
+                          {activeSkipAction.label.replace('Skip ', '')}
+                        </button>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
 
                   {/* Skip Backward 10s */}
                   <button

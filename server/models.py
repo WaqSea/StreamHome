@@ -44,6 +44,7 @@ class Movie(SQLModel, table=True):
     subtitles_str: Optional[str] = Field(default="[]")  # Serialized JSON List[Dict[str, str]]
     vote_average: Optional[float] = Field(default=7.5)
     vote_count: Optional[int] = Field(default=100)
+    skip_markers_str: Optional[str] = Field(default="{}")  # Serialized JSON Dict
 
     @property
     def genres(self) -> List[str]:
@@ -92,6 +93,17 @@ class Movie(SQLModel, table=True):
     def subtitles(self, val: List[Dict[str, str]]):
         self.subtitles_str = json.dumps(val or [])
 
+    @property
+    def skip_markers(self) -> Dict[str, Any]:
+        try:
+            return json.loads(self.skip_markers_str or "{}")
+        except Exception:
+            return {}
+
+    @skip_markers.setter
+    def skip_markers(self, val: Dict[str, Any]):
+        self.skip_markers_str = json.dumps(val or {})
+
 class Episode(SQLModel, table=True):
     id: str = Field(primary_key=True)
     movie_id: str = Field(foreign_key="movie.id")
@@ -105,6 +117,7 @@ class Episode(SQLModel, table=True):
     quality: Optional[str] = Field(default="Source")
     languages_str: Optional[str] = Field(default='["en"]')  # Serialized JSON List[str]
     subtitles_str: Optional[str] = Field(default="[]")  # Serialized JSON List[Dict[str, str]]
+    skip_markers_str: Optional[str] = Field(default="{}")  # Serialized JSON Dict
 
     @property
     def languages(self) -> List[str]:
@@ -130,6 +143,17 @@ class Episode(SQLModel, table=True):
     @subtitles.setter
     def subtitles(self, val: List[Dict[str, str]]):
         self.subtitles_str = json.dumps(val or [])
+
+    @property
+    def skip_markers(self) -> Dict[str, Any]:
+        try:
+            return json.loads(self.skip_markers_str or "{}")
+        except Exception:
+            return {}
+
+    @skip_markers.setter
+    def skip_markers(self, val: Dict[str, Any]):
+        self.skip_markers_str = json.dumps(val or {})
 
 class User(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -222,6 +246,7 @@ class EpisodeResponse(APIModel):
     quality: Optional[str] = "Source"
     languages: List[str] = ["en"]
     subtitles: List[Dict[str, str]] = []
+    skip_markers: Dict[str, Any] = {}
 
 class MovieResponse(APIModel):
     id: str
@@ -242,6 +267,7 @@ class MovieResponse(APIModel):
     subtitles: List[Dict[str, str]] = []
     vote_average: Optional[float] = 7.5
     vote_count: Optional[int] = 100
+    skip_markers: Dict[str, Any] = {}
     episodes: Optional[List[EpisodeResponse]] = None
 
     @classmethod
@@ -265,6 +291,7 @@ class MovieResponse(APIModel):
             subtitles=movie.subtitles,
             vote_average=movie.vote_average,
             vote_count=movie.vote_count,
+            skip_markers=movie.skip_markers,
             episodes=[
                 EpisodeResponse(
                     id=e.id,
@@ -277,7 +304,8 @@ class MovieResponse(APIModel):
                     duration=e.duration,
                     quality=e.quality or "Source",
                     languages=e.languages,
-                    subtitles=e.subtitles
+                    subtitles=e.subtitles,
+                    skip_markers=e.skip_markers
                 )
                 for e in episodes
             ] if episodes else None

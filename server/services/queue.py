@@ -425,12 +425,16 @@ class DownloadQueueManager:
                             })
                             break
 
+            duration_str = meta.get("duration", "1h 30m")
+            dur_ms = int(self._parse_duration_to_seconds(duration_str) * 1000)
+            skip_data = await self._fetch_tidb_markers(tmdb_id, False, dur_ms)
+            
             movie = await db.get(Movie, movie_id)
             if not movie:
                 movie = Movie(
                     id=movie_id, title=meta.get("title", f"Movie {tmdb_id}"), description=meta.get("description", ""),
                     thumbnail_url=local_thumbnail or "", banner_url=local_banner or "", video_url=served_url,
-                    duration=meta.get("duration", "1h 30m"), release_year=meta.get("releaseYear", 2026),
+                    duration=duration_str, release_year=meta.get("releaseYear", 2026),
                     rating=meta.get("rating", "PG-13"), director=meta.get("director", "Unknown"),
                     original_language=language or meta.get("originalLanguage", "en"), type="movie",
                     vote_average=meta.get("vote_average", 7.5), vote_count=meta.get("vote_count", 100)
@@ -440,6 +444,7 @@ class DownloadQueueManager:
                 movie.quality = movie_quality
                 movie.languages = movie_languages
                 movie.subtitles = subs_on_disk
+                movie.skip_markers = skip_data
                 db.add(movie)
                 await db.commit()
                 print(f"[Queue Manager] Cataloged new movie: {meta.get('title', 'Unknown Movie')}")
@@ -448,6 +453,22 @@ class DownloadQueueManager:
                 movie.description = meta.get("description", movie.description)
                 movie.thumbnail_url = local_thumbnail or movie.thumbnail_url
                 movie.banner_url = local_banner or movie.banner_url
+                movie.video_url = served_url
+                movie.duration = duration_str
+                movie.release_year = meta.get("releaseYear", movie.release_year)
+                movie.rating = meta.get("rating", movie.rating)
+                movie.director = meta.get("director", movie.director)
+                movie.cast = meta.get("cast", movie.cast)
+                movie.genres = meta.get("genres", movie.genres)
+                movie.original_language = language or meta.get("originalLanguage", movie.original_language)
+                movie.quality = movie_quality
+                movie.languages = movie_languages
+                movie.subtitles = subs_on_disk
+                movie.skip_markers = skip_data
+                movie.vote_average = meta.get("vote_average", movie.vote_average)
+                movie.vote_count = meta.get("vote_count", movie.vote_count)
+                db.add(movie)
+                await db.commit()
                 movie.video_url = served_url
                 movie.duration = meta.get("duration", movie.duration)
                 movie.release_year = meta.get("releaseYear", movie.release_year)
@@ -481,7 +502,8 @@ class DownloadQueueManager:
                 "languages": movie_languages,
                 "quality": movie_quality,
                 "subtitles": subs_on_disk,
-                "original_language": language or "en"
+                "original_language": language or "en",
+                "skip_markers": skip_data
             }
             with open(movie_metadata_file, "w", encoding="utf-8") as f:
                 json.dump(movie_metadata_content, f, indent=2, ensure_ascii=False)
@@ -567,15 +589,20 @@ class DownloadQueueManager:
             elif not os.path.exists(ep_backdrop_abs) and meta.get("bannerUrl"):
                 await download_and_cache_metadata_image(meta.get("bannerUrl"), ep_backdrop_abs)
                 
+            ep_dur_str = ep_meta.get("duration", "45m")
+            ep_dur_ms = int(self._parse_duration_to_seconds(ep_dur_str) * 1000)
+            ep_skip_data = await self._fetch_tidb_markers(tmdb_id, True, ep_dur_ms, season_num, episode_num)
+            
             if not ep_entry:
                 ep_entry = Episode(
                     id=ep_id, movie_id=show_id, episode_number=episode_num, season_number=season_num,
                     title=ep_title, description=ep_desc, thumbnail_url=ep_thumb_rel or "",
-                    video_url=served_url, duration=ep_meta.get("duration", "45m")
+                    video_url=served_url, duration=ep_dur_str
                 )
                 ep_entry.quality = ep_quality
                 ep_entry.languages = ep_languages
                 ep_entry.subtitles = subs_on_disk
+                ep_entry.skip_markers = ep_skip_data
                 db.add(ep_entry)
                 await db.commit()
                 print(f"[Queue Manager] Cataloged new episode: S{season_num}E{episode_num}")
@@ -584,10 +611,11 @@ class DownloadQueueManager:
                 ep_entry.description = ep_desc
                 ep_entry.thumbnail_url = ep_thumb_rel or ep_entry.thumbnail_url
                 ep_entry.video_url = served_url
-                ep_entry.duration = ep_meta.get("duration", ep_entry.duration)
+                ep_entry.duration = ep_dur_str
                 ep_entry.quality = ep_quality
                 ep_entry.languages = ep_languages
                 ep_entry.subtitles = subs_on_disk
+                ep_entry.skip_markers = ep_skip_data
                 db.add(ep_entry)
                 await db.commit()
                 print(f"[Queue Manager] Updated episode: S{season_num}E{episode_num}")
@@ -610,7 +638,8 @@ class DownloadQueueManager:
                 "languages": ep_languages,
                 "quality": ep_quality,
                 "subtitles": subs_on_disk,
-                "original_language": language or "en"
+                "original_language": language or "en",
+                "skip_markers": ep_skip_data
             }
             with open(ep_metadata_file, "w", encoding="utf-8") as f:
                 json.dump(ep_metadata_content, f, indent=2, ensure_ascii=False)
@@ -619,6 +648,29 @@ class DownloadQueueManager:
             sync_compatible_metadata_file = os.path.join(ep_metadata_dir, f"metadata_s{season_num}_e{episode_num}.json")
             with open(sync_compatible_metadata_file, "w", encoding="utf-8") as f:
                 json.dump(ep_metadata_content, f, indent=2, ensure_ascii=False)
+
+    async def _fetch_tidb_markers(self, tmdb_id: int, is_tv: bool, duration_ms: int, season: Optional[int] = None, episode: Optional[int] = None) -> Dict[str, Any]:
+        url = "https://api.theintrodb.org/v3/media"
+        params = {"tmdb_id": tmdb_id, "duration_ms": duration_ms}
+        if is_tv and season is not None and episode is not None:
+            params["season"] = season
+            params["episode"] = episode
+            
+        try:
+            import httpx
+            async with httpx.AsyncClient() as client:
+                res = await client.get(url, params=params, timeout=10.0)
+                if res.status_code == 200:
+                    data = res.json()
+                    return {
+                        "intro": data.get("intro", []),
+                        "recap": data.get("recap", []),
+                        "credits": data.get("credits", []),
+                        "preview": data.get("preview", [])
+                    }
+        except Exception as e:
+            print(f"[Queue Manager] TIDB fetch failed for TMDB {tmdb_id}: {e}")
+        return {}
 
     def _parse_duration_to_seconds(self, duration_str: str) -> float:
         total_seconds = 0.0
