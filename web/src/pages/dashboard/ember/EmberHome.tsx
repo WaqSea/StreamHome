@@ -67,10 +67,9 @@ export function EmberHome() {
             className="absolute inset-0 w-full h-full object-cover"
           />
           <div className="absolute inset-0 opacity-30 pointer-events-none">
-            <EmberBackground />
           </div>
           <div 
-            className="absolute bottom-0 left-0 w-full h-[40%]"
+            className="absolute bottom-0 left-0 w-full h-[40%] pointer-events-none"
             style={{ background: 'linear-gradient(to top, var(--bg-body) 0%, transparent 100%)' }}
           />
           
