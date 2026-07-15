@@ -12,12 +12,6 @@ export async function apiFetch<T>(path: string, options: RequestInit = {}): Prom
 
   const response = await fetch(path, { ...options, headers });
   
-  if (response.status === 401) {
-    localStorage.removeItem("streamhome_token");
-    window.location.href = "/login";
-    throw new Error("Unauthorized");
-  }
-  
   if (!response.ok) {
     let errorMessage = "API request failed";
     try {
@@ -26,6 +20,14 @@ export async function apiFetch<T>(path: string, options: RequestInit = {}): Prom
     } catch {
       // Ignore if not JSON
     }
+    
+    if (response.status === 401) {
+      localStorage.removeItem("streamhome_token");
+      if (window.location.pathname !== "/login") {
+        window.location.href = "/login";
+      }
+    }
+    
     throw new Error(errorMessage);
   }
   

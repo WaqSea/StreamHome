@@ -5,9 +5,6 @@ import { useAuthStore } from '../stores/authStore';
 import { login, verify2FA } from '../api/auth';
 import { EmberBackground } from '../themes/ember/EmberBackground';
 import { ScanLines } from '../themes/ember/ScanLines';
-import { GlassPane } from '../components/ui/GlassPane';
-import { Input } from '../components/ui/Input';
-import { Button } from '../components/ui/Button';
 
 export function LoginPage() {
   const navigate = useNavigate();
@@ -21,6 +18,21 @@ export function LoginPage() {
   const [requires2FA, setRequires2FA] = useState(false);
   const [totpCode, setTotpCode] = useState<string[]>(Array(6).fill(''));
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+
+  // Spotlight refs
+  const [isHovered, setIsHovered] = useState(false);
+  const spotlightRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLElement>) => {
+    if (spotlightRef.current && containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      spotlightRef.current.style.left = `${x}px`;
+      spotlightRef.current.style.top = `${y}px`;
+    }
+  };
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -83,27 +95,54 @@ export function LoginPage() {
   };
 
   return (
-    <div className="relative w-full h-screen flex items-center justify-center overflow-hidden" data-theme="ember">
+    <div className="relative w-full min-h-screen flex flex-col items-center justify-center overflow-hidden bg-[var(--bg-body)]" data-theme="ember">
       <EmberBackground />
       <ScanLines />
 
       <motion.div
         initial={{ opacity: 0, y: 30 }}
-        animate={error ? { x: [-10, 10, -10, 10, 0] } : { opacity: 1, y: 0 }}
+        animate={error ? { x: [-10, 10, -10, 10, 0], opacity: 1, y: 0 } : { opacity: 1, y: 0, x: 0 }}
         transition={error ? { duration: 0.4 } : { duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-        className="relative z-10 w-full max-w-md mx-4"
+        className="relative z-10 w-full max-w-[500px] mx-4"
       >
-        <GlassPane className="p-8 pb-10">
-          <div className="mb-8 text-center">
-            <h1 className="font-[family-name:var(--font-headline)] text-[var(--text-accent)] text-3xl tracking-widest font-bold select-none">
-              STREAMHOME
-            </h1>
-            <p className="font-[family-name:var(--font-mono)] text-[var(--text-muted)] text-xs tracking-widest uppercase mt-2">
-              Secure Terminal Access
-            </p>
+        {/* HERO SECTION - Extracted outside the box! */}
+        <section className="mb-8 flex flex-col items-start gap-4">
+          <div 
+            className="inline-flex items-center gap-2 border border-[#ffb59c] rounded-sm text-[#ffb59c] font-[family-name:var(--font-mono)] text-[12px] uppercase tracking-[0.1em] font-medium"
+            style={{ padding: '4px 12px' }}
+          >
+            <span className="w-2 h-2 rounded-full bg-[#ffb59c] animate-pulse shrink-0"></span>
+            AUTH REQUIRED
           </div>
+          <h1 className="font-[family-name:var(--font-headline)] text-white text-5xl md:text-6xl tracking-[0.02em] font-bold select-none min-h-[60px]">
+            STREAMHOME
+          </h1>
+          <p className="font-[family-name:var(--font-mono)] text-[var(--text-muted)] text-[12px] tracking-[0.2em] uppercase mt-2 opacity-80">
+            Secure Terminal Access
+          </p>
+        </section>
 
-          <div className="relative overflow-hidden">
+        {/* GLASS PANE - Now only wraps the form! */}
+        <div 
+          ref={containerRef}
+          onMouseMove={handleMouseMove}
+          onMouseEnter={() => setIsHovered(true)}
+          onMouseLeave={() => setIsHovered(false)}
+          className="relative w-full rounded-lg border border-[rgba(255,95,31,0.15)] bg-[rgba(30,16,11,0.4)] backdrop-blur-[12px] overflow-hidden shadow-2xl"
+          style={{ padding: '40px' }}
+        >
+          {/* Spotlight Effect */}
+          <div 
+            ref={spotlightRef}
+            className="absolute pointer-events-none w-[400px] h-[400px] -translate-x-1/2 -translate-y-1/2 rounded-full z-0"
+            style={{ 
+              background: 'radial-gradient(circle, rgba(255, 95, 31, 0.4) 0%, transparent 70%)',
+              opacity: isHovered ? 1 : 0,
+              transition: 'opacity 300ms ease'
+            }}
+          />
+
+          <div className="relative z-10 w-full h-full">
             <AnimatePresence mode="wait">
               {!requires2FA ? (
                 <motion.form
@@ -111,32 +150,66 @@ export function LoginPage() {
                   exit={{ opacity: 0, x: -30 }}
                   transition={{ duration: 0.3 }}
                   onSubmit={handleLoginSubmit}
-                  className="flex flex-col gap-6"
+                  className="flex flex-col gap-8"
                 >
-                  <Input
-                    label="Email Address"
-                    type="email"
-                    value={email}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)}
-                    required
-                    disabled={isLoading}
-                  />
-                  <Input
-                    label="Master Password"
-                    type="password"
-                    value={password}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
-                    required
-                    disabled={isLoading}
-                  />
-                  {error && (
-                    <div className="text-[var(--text-error)] text-xs font-[family-name:var(--font-mono)] mt-[-10px]">
-                      {error}
+                  <div className="flex flex-col gap-3">
+                    <label className="font-[family-name:var(--font-mono)] text-[12px] tracking-[0.1em] uppercase text-[var(--text-muted)] opacity-90 pl-1 font-medium">
+                      Email Address
+                    </label>
+                    <div className="relative group">
+                      <input
+                        type="email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        required
+                        disabled={isLoading}
+                        className="w-full bg-[rgba(0,0,0,0.2)] border border-[rgba(255,255,255,0.05)] text-white font-[family-name:var(--font-mono)] text-[16px] h-[60px] outline-none transition-all duration-300 focus:bg-[rgba(255,95,31,0.03)] focus:border-[#f97316] focus:shadow-[0_0_15px_rgba(255,95,31,0.15)] rounded-sm"
+                        style={{ paddingLeft: '24px', paddingRight: '24px' }}
+                        placeholder="operator@streamhome.local"
+                      />
                     </div>
+                  </div>
+                  
+                  <div className="flex flex-col gap-3">
+                    <label className="font-[family-name:var(--font-mono)] text-[12px] tracking-[0.1em] uppercase text-[var(--text-muted)] opacity-90 pl-1 font-medium">
+                      Master Password
+                    </label>
+                    <div className="relative group">
+                      <input
+                        type="password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        required
+                        disabled={isLoading}
+                        className="w-full bg-[rgba(0,0,0,0.2)] border border-[rgba(255,255,255,0.05)] text-white font-[family-name:var(--font-mono)] text-[16px] h-[60px] outline-none transition-all duration-300 focus:bg-[rgba(255,95,31,0.03)] focus:border-[#f97316] focus:shadow-[0_0_15px_rgba(255,95,31,0.15)] rounded-sm"
+                        style={{ paddingLeft: '24px', paddingRight: '24px' }}
+                        placeholder="••••••••••••"
+                      />
+                    </div>
+                  </div>
+                  
+                  {error && (
+                    <motion.div 
+                      initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }}
+                      className="inline-flex items-center gap-2 border border-[#ffb4ab] rounded-sm text-[#ffb4ab] font-[family-name:var(--font-mono)] text-[12px] tracking-[0.1em]"
+                      style={{ padding: '4px 12px' }}
+                    >
+                      <span className="w-2 h-2 rounded-full bg-[#ffb4ab] animate-pulse shrink-0"></span>
+                      <span>{error}</span>
+                    </motion.div>
                   )}
-                  <Button type="submit" disabled={isLoading} className="mt-2">
-                    {isLoading ? 'Authenticating...' : 'Initialize Connection'}
-                  </Button>
+
+                  <div className="pt-2">
+                    <button 
+                      type="submit" 
+                      disabled={isLoading} 
+                      className="w-full relative z-10 h-[64px] mt-4 bg-[rgba(30,16,11,0.4)] backdrop-blur-[12px] border border-[#f97316] shadow-[0_0_10px_rgba(255,95,31,0.5)] text-white font-[family-name:var(--font-mono)] text-[16px] tracking-[0.1em] font-medium rounded hover:shadow-[0_0_15px_rgba(255,95,31,0.8)] hover:scale-[1.02] active:scale-[0.98] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed uppercase"
+                    >
+                      <span className="relative z-10 font-bold">
+                        {isLoading ? 'Authenticating...' : 'Initialize Connection'}
+                      </span>
+                    </button>
+                  </div>
                 </motion.form>
               ) : (
                 <motion.div
@@ -144,13 +217,18 @@ export function LoginPage() {
                   initial={{ opacity: 0, x: 30 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-                  className="flex flex-col items-center justify-center gap-6"
+                  className="flex flex-col items-center justify-center gap-10 py-6"
                 >
-                  <p className="font-[family-name:var(--font-mono)] text-[var(--text-secondary)] text-sm text-center">
-                    Enter the 6-digit TOTP code from your authenticator app.
-                  </p>
+                  <div className="text-center space-y-2">
+                    <p className="font-[family-name:var(--font-mono)] text-[var(--text-accent)] text-sm uppercase tracking-widest animate-pulse">
+                      Identity Verification
+                    </p>
+                    <p className="font-[family-name:var(--font-mono)] text-[var(--text-secondary)] text-[12px] uppercase tracking-[0.1em] opacity-60">
+                      Enter 6-digit TOTP token
+                    </p>
+                  </div>
                   
-                  <div className="flex gap-2">
+                  <div className="flex gap-4">
                     {totpCode.map((digit, i) => (
                       <input
                         key={i}
@@ -161,31 +239,29 @@ export function LoginPage() {
                         onChange={(e) => handleTotpChange(i, e.target.value)}
                         onKeyDown={(e) => handleTotpKeyDown(i, e)}
                         disabled={isLoading}
-                        className="w-12 h-14 text-center text-xl font-[family-name:var(--font-mono)] bg-transparent border-b-2 border-[rgba(255,255,255,0.2)] text-[var(--text-primary)] outline-none transition-all duration-[var(--duration-fast)] focus:border-[var(--glass-border-hover)] focus:shadow-[0_4px_10px_rgba(255,95,31,0.2)]"
+                        className="w-12 h-16 md:w-14 md:h-16 text-center text-2xl font-[family-name:var(--font-mono)] bg-[rgba(0,0,0,0.4)] border border-[var(--border-surface)] text-white outline-none transition-all duration-[var(--duration-fast)] focus:border-[#f97316] focus:shadow-[0_0_15px_rgba(255,95,31,0.3)] focus:bg-[rgba(255,95,31,0.05)] rounded-sm"
                       />
                     ))}
                   </div>
 
                   {error && (
-                    <div className="text-[var(--text-error)] text-xs font-[family-name:var(--font-mono)]">
+                    <div className="text-[#ffb4ab] text-[13px] font-[family-name:var(--font-mono)] border border-[#ffb4ab] bg-[rgba(255,0,0,0.05)] px-4 py-3 rounded-sm w-full text-center">
                       {error}
                     </div>
                   )}
 
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
+                  <button 
                     onClick={() => { setRequires2FA(false); setTotpCode(Array(6).fill('')); setError(''); }}
                     disabled={isLoading}
-                    className="mt-4"
+                    className="mt-4 font-[family-name:var(--font-mono)] text-[11px] tracking-[0.1em] uppercase text-[var(--text-muted)] hover:text-white transition-colors duration-[var(--duration-fast)] border-b border-transparent hover:border-white pb-1"
                   >
-                    Cancel
-                  </Button>
+                    Abort Connection
+                  </button>
                 </motion.div>
               )}
             </AnimatePresence>
           </div>
-        </GlassPane>
+        </div>
       </motion.div>
     </div>
   );

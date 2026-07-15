@@ -22,9 +22,9 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(({
       <input
         ref={ref}
         className={cn(
-          "bg-transparent border-0 border-b border-[rgba(255,255,255,0.2)]",
+          "bg-transparent border-0 border-b-[1px] border-b-[rgba(255,255,255,0.2)]",
           "text-[var(--text-primary)] font-[family-name:var(--font-mono)]",
-          "h-[40px] px-2 outline-none",
+          "px-4 py-3 outline-none",
           "transition-all duration-[var(--duration-fast)] ease-[var(--easing-smooth)]",
           "focus:border-b-2 focus:border-[var(--glass-border-hover)] focus:shadow-[0_4px_10px_rgba(255,95,31,0.2)]",
           error && "border-[var(--text-error)] focus:border-[var(--text-error)]"

@@ -3,7 +3,7 @@ import { cn } from '../../utils/cn';
 
 interface GlassPaneProps {
   className?: string;
-  children: React.ReactNode;
+  children?: React.ReactNode;
   spotlight?: boolean;
   as?: ElementType;
   onMouseMove?: (e: MouseEvent<HTMLElement>) => void;
