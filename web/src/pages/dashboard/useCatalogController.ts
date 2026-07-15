@@ -61,7 +61,10 @@ export function useCatalogController(profile: Profile, query: AppQueryState): Ca
 
   const movieItems = useMemo(() => movies.filter((movie) => movie.type === "movie"), [movies]);
   const seriesItems = useMemo(() => movies.filter((movie) => movie.type === "series"), [movies]);
-  const genres = useMemo(() => Array.from(new Set(movies.flatMap((movie) => movie.genres))).sort(), [movies]);
+  const genres = useMemo(() => {
+    const source = query.view === "movies" ? movieItems : query.view === "series" ? seriesItems : movies;
+    return Array.from(new Set(source.flatMap((movie) => movie.genres))).sort();
+  }, [movieItems, movies, query.view, seriesItems]);
   const browseItems = useMemo(() => {
     const source = query.view === "series" ? seriesItems : movieItems;
     return query.genre ? source.filter((movie) => movie.genres.some((genre) => genre.toLocaleLowerCase() === query.genre?.toLocaleLowerCase())) : source;

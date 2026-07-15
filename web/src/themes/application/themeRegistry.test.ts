@@ -9,5 +9,8 @@ describe("theme definition registry", () => {
     expect(new Set(definitions.map((theme) => theme.cardVariant)).size).toBe(4);
     expect(new Set(definitions.map((theme) => theme.detailsVariant)).size).toBe(4);
     expect(new Set(definitions.map((theme) => theme.playerVariant)).size).toBe(4);
+    expect(THEME_DEFINITIONS.ember.Application).not.toBe(THEME_DEFINITIONS.cinema.Application);
+    expect(THEME_DEFINITIONS.aurora.Application).toBe(THEME_DEFINITIONS.cinema.Application);
+    expect(THEME_DEFINITIONS.cinema.Application).toBe(THEME_DEFINITIONS.gemini.Application);
   });
 });

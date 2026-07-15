@@ -2,13 +2,13 @@
 
 ## Current focus
 
-The current work is a web-only reliability repair. The server is the source of truth for the media catalog, artwork, metadata, streaming URLs, episodes, subtitles, skip markers, queue progress, and system settings.
+The approved web-only Ember Obsidian Glass rebuild is complete. It includes profile management, view scroll restoration, and URL-synchronized series auto-advance. The server remains the source of truth for all media information.
 
 ## Current web architecture
 
 - React routes are protected by hydrated auth and a query-aware profile guard that resolves `profile` against server profiles.
 - API modules normalize the server's wire format into stable TypeScript models.
-- The selected profile controls one of four themes: Ember, Aurora, Cinema, or Gemini. Legacy `netflix` profile values migrate to `cinema`.
+- The selected profile controls one of four canonical themes: Ember, Aurora, Cinema, or Gemini. Legacy, missing, and unknown values fall back to Ember; only explicit `cinema` selects Cinema.
 - The authenticated application uses canonical query state such as `/?profile=1&view=series`; search, genres, details, seasons, playback, downloads, and admin sections are deep-linkable.
 - Shared catalog controller hooks own API behavior while a typed theme registry selects distinct Ember, Aurora, Cinema, and Gemini navigation, heroes, cards, details, and player presentation.
 - Ember follows the Obsidian Frost reference: sharp obsidian glass, restrained orange glow, scanlines, serif display type, and technical mono labels. Aurora, Cinema, and Gemini retain separate editorial, cinematic, and workspace identities.
@@ -25,4 +25,4 @@ The current work is a web-only reliability repair. The server is the source of t
 
 ## Next step
 
-Complete final validation and commit the query-navigation/theme restoration. Future web features must first be backed by an existing server endpoint or a separately approved server change.
+The implementation has passed frontend lint, tests, production build, live desktop/mobile browser QA, the media-boundary scan, and the server database checker. No follow-up implementation is currently pending.

@@ -18,7 +18,7 @@ export function EmberBackground({ suspendWhenHidden = false, respectReducedMotio
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    let animationFrameId: number;
+    let animationFrameId: number | undefined;
     let particles: Particle[] = [];
 
     const resize = () => {
@@ -43,10 +43,7 @@ export function EmberBackground({ suspendWhenHidden = false, respectReducedMotio
 
     const reducedMotion = respectReducedMotion && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const draw = () => {
-      if (suspendWhenHidden && document.hidden) {
-        animationFrameId = requestAnimationFrame(draw);
-        return;
-      }
+      if (suspendWhenHidden && document.hidden) return;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
       particles.forEach(p => {
@@ -66,12 +63,24 @@ export function EmberBackground({ suspendWhenHidden = false, respectReducedMotio
       if (!reducedMotion) animationFrameId = requestAnimationFrame(draw);
     };
 
+    const handleVisibility = () => {
+      if (!suspendWhenHidden || reducedMotion) return;
+      if (document.hidden) {
+        if (animationFrameId) cancelAnimationFrame(animationFrameId);
+        animationFrameId = undefined;
+      } else if (!animationFrameId) {
+        animationFrameId = requestAnimationFrame(draw);
+      }
+    };
+
     window.addEventListener('resize', resize);
+    document.addEventListener('visibilitychange', handleVisibility);
     resize();
     draw();
 
     return () => {
       window.removeEventListener('resize', resize);
+      document.removeEventListener('visibilitychange', handleVisibility);
       if (animationFrameId) cancelAnimationFrame(animationFrameId);
     };
   }, [respectReducedMotion, suspendWhenHidden]);

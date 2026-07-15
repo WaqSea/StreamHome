@@ -10,9 +10,7 @@ interface ThemeState {
 }
 
 function applyTheme(theme: string | null | undefined): ThemeId {
-  const normalized = normalizeTheme(theme);
-  document.documentElement.setAttribute("data-theme", normalized);
-  return normalized;
+  return normalizeTheme(theme);
 }
 
 export const useThemeStore = create<ThemeState>((set) => ({

@@ -3,13 +3,14 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { appUrl, parseAppQuery } from "../../navigation/queryState";
 import { useProfileStore } from "../../stores/profileStore";
 import { useThemeStore } from "../../stores/themeStore";
-import { ThemeDashboard } from "./ThemeDashboard";
+import { getThemeDefinition } from "../../themes/application/themeRegistry";
 import { useCatalogController } from "./useCatalogController";
 
 export function DashboardRouter() {
   const location = useLocation();
   const navigate = useNavigate();
   const activeProfile = useProfileStore((state) => state.activeProfile)!;
+  const activeTheme = useThemeStore((state) => state.activeTheme);
   const syncFromProfile = useThemeStore((state) => state.syncFromProfile);
   const query = useMemo(() => parseAppQuery(location.search), [location.search]);
   const controller = useCatalogController(activeProfile, query);
@@ -21,5 +22,7 @@ export function DashboardRouter() {
     if (!valid) navigate(appUrl(activeProfile.id, query.view), { replace: true });
   }, [activeProfile.id, controller.genres, controller.loading, navigate, query.genre, query.view]);
 
-  return <ThemeDashboard query={query} controller={controller} />;
+  const presentation = getThemeDefinition(activeTheme);
+  const Application = presentation.Application;
+  return <Application query={query} controller={controller} presentation={presentation} />;
 }

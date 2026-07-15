@@ -7,13 +7,11 @@ import { useAuthStore } from "../../stores/authStore";
 import { useProfileStore } from "../../stores/profileStore";
 import { useThemeStore } from "../../stores/themeStore";
 import type { DiscoverMovie, Movie, PlaybackSession } from "../../types/api";
-import { getThemeDefinition } from "../../themes/application/themeRegistry";
+import type { ThemeApplicationProps } from "../../themes/application/contracts";
 import { completionFraction, isPlayableMovie } from "../../utils/media";
 import { DetailsRouter } from "../details/DetailsRouter";
 import { ServerDownloads } from "./ServerDownloads";
 import type { CatalogController } from "./useCatalogController";
-
-interface ThemeDashboardProps { query: AppQueryState; controller: CatalogController; }
 
 function MediaCard({ movie, session, theme, onOpen }: { movie: Movie; session?: PlaybackSession; theme: string; onOpen: (movie: Movie) => void }) {
   const playable = isPlayableMovie(movie);
@@ -55,14 +53,13 @@ function resultToMovie(result: DiscoverMovie, movies: Movie[]) { const id = resu
 function LoadingState({ label = "Loading server catalog" }: { label?: string }) { return <div className="catalog-state catalog-state--loading"><i /><p>{label}</p></div>; }
 function EmptyState({ title, body }: { title: string; body: string }) { return <div className="catalog-state"><p>NO DATA</p><h2>{title}</h2><span>{body}</span></div>; }
 
-export function ThemeDashboard({ query, controller }: ThemeDashboardProps) {
+export function LegacyThemeAdapter({ query, controller, presentation: definition }: ThemeApplicationProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const profile = useProfileStore((state) => state.activeProfile)!;
   const theme = useThemeStore((state) => state.activeTheme);
   const clearProfile = useProfileStore((state) => state.clearProfile);
   const logout = useAuthStore((state) => state.logout);
-  const definition = getThemeDefinition(theme);
   const Background = definition.Background;
   const Navigation = definition.Navigation;
   const appNavigate = (view: AppView, options: Parameters<typeof appUrl>[2] = {}) => navigate(appUrl(profile.id, view, options), { state: { fromApp: true, previous: location.search } });

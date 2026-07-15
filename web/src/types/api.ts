@@ -47,8 +47,10 @@ export interface CreateProfileRequest {
   avatarColor?: string;
   theme?: string;
   pinEnabled?: boolean;
-  pin?: string;
+  pin?: string | null;
 }
+
+export type SaveProfileRequest = CreateProfileRequest;
 
 export interface SubtitleInfo {
   language: string;

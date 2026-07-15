@@ -4,7 +4,6 @@ import type { ThemeId } from "../types/theme";
 export const SUPPORTED_THEMES: ThemeId[] = ["ember", "aurora", "cinema", "gemini"];
 
 export function normalizeTheme(theme: string | null | undefined): ThemeId {
-  if (theme === "netflix") return "cinema";
   return SUPPORTED_THEMES.includes(theme as ThemeId) ? (theme as ThemeId) : "ember";
 }
 

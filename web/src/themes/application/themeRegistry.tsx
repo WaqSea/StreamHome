@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from "react";
 import type { AppView } from "../../navigation/queryState";
-import type { Profile } from "../../types/api";
 import type { ThemeId } from "../../types/theme";
 import { avatarBackground } from "../../utils/media";
 import { AuroraBackground } from "../aurora/AuroraBackground";
@@ -8,23 +7,15 @@ import { CinemaBackground } from "../cinema/CinemaBackground";
 import { EmberBackground } from "../ember/EmberBackground";
 import { ScanLines } from "../ember/ScanLines";
 import { GeminiBackground } from "../gemini/GeminiBackground";
+import { LegacyThemeAdapter } from "../../pages/dashboard/ThemeDashboard";
+import { EmberDashboard } from "../../pages/dashboard/ember/EmberDashboard";
+import type { ThemeApplicationProps, ThemeNavigationProps, ThemePresentation } from "./contracts";
+export type { ThemeNavigationProps } from "./contracts";
 
 const NAV_ITEMS: Array<{ view: AppView; label: string }> = [
   { view: "home", label: "Home" }, { view: "movies", label: "Movies" },
   { view: "series", label: "Series" }, { view: "downloads", label: "Downloads" },
 ];
-
-export interface ThemeNavigationProps {
-  profile: Profile;
-  activeView: AppView;
-  query?: string;
-  isAdmin: boolean;
-  onView: (view: AppView) => void;
-  onSearch: (query: string) => void;
-  onProfiles: () => void;
-  onAdmin: () => void;
-  onLogout: () => void;
-}
 
 function SearchForm({ initial, onSearch, compact = false }: { initial?: string; onSearch: (query: string) => void; compact?: boolean }) {
   const [value, setValue] = useState(initial ?? "");
@@ -61,24 +52,13 @@ function GeminiNavigation(props: ThemeNavigationProps) {
 
 function EmberBackdrop() { return <><EmberBackground suspendWhenHidden respectReducedMotion /><ScanLines /></>; }
 
-export interface ThemeDefinition {
-  id: ThemeId;
-  label: string;
-  Background: React.ComponentType;
-  Navigation: React.ComponentType<ThemeNavigationProps>;
-  shellClass: string;
-  heroVariant: "terminal" | "editorial" | "cinematic" | "workspace";
-  browseVariant: "technical" | "masonry" | "rails" | "modules";
-  cardVariant: "sharp" | "glass" | "poster" | "module";
-  detailsVariant: "terminal" | "editorial" | "cinematic" | "workspace";
-  playerVariant: "terminal" | "minimal" | "cinematic" | "workspace";
-}
+export interface ThemeDefinition extends ThemePresentation { Application: React.ComponentType<ThemeApplicationProps>; }
 
 export const THEME_DEFINITIONS: Record<ThemeId, ThemeDefinition> = {
-  ember: { id: "ember", label: "Ember", Background: EmberBackdrop, Navigation: EmberNavigation, shellClass: "theme-app--ember", heroVariant: "terminal", browseVariant: "technical", cardVariant: "sharp", detailsVariant: "terminal", playerVariant: "terminal" },
-  aurora: { id: "aurora", label: "Aurora", Background: AuroraBackground, Navigation: AuroraNavigation, shellClass: "theme-app--aurora", heroVariant: "editorial", browseVariant: "masonry", cardVariant: "glass", detailsVariant: "editorial", playerVariant: "minimal" },
-  cinema: { id: "cinema", label: "Cinema", Background: CinemaBackground, Navigation: CinemaNavigation, shellClass: "theme-app--cinema", heroVariant: "cinematic", browseVariant: "rails", cardVariant: "poster", detailsVariant: "cinematic", playerVariant: "cinematic" },
-  gemini: { id: "gemini", label: "Gemini", Background: GeminiBackground, Navigation: GeminiNavigation, shellClass: "theme-app--gemini", heroVariant: "workspace", browseVariant: "modules", cardVariant: "module", detailsVariant: "workspace", playerVariant: "workspace" },
+  ember: { id: "ember", label: "Ember", Application: EmberDashboard, Background: EmberBackdrop, Navigation: EmberNavigation, shellClass: "theme-app--ember", heroVariant: "terminal", browseVariant: "technical", cardVariant: "sharp", detailsVariant: "terminal", playerVariant: "terminal" },
+  aurora: { id: "aurora", label: "Aurora", Application: LegacyThemeAdapter, Background: AuroraBackground, Navigation: AuroraNavigation, shellClass: "theme-app--aurora", heroVariant: "editorial", browseVariant: "masonry", cardVariant: "glass", detailsVariant: "editorial", playerVariant: "minimal" },
+  cinema: { id: "cinema", label: "Cinema", Application: LegacyThemeAdapter, Background: CinemaBackground, Navigation: CinemaNavigation, shellClass: "theme-app--cinema", heroVariant: "cinematic", browseVariant: "rails", cardVariant: "poster", detailsVariant: "cinematic", playerVariant: "cinematic" },
+  gemini: { id: "gemini", label: "Gemini", Application: LegacyThemeAdapter, Background: GeminiBackground, Navigation: GeminiNavigation, shellClass: "theme-app--gemini", heroVariant: "workspace", browseVariant: "modules", cardVariant: "module", detailsVariant: "workspace", playerVariant: "workspace" },
 };
 
 export function getThemeDefinition(id: ThemeId): ThemeDefinition { return THEME_DEFINITIONS[id] ?? THEME_DEFINITIONS.ember; }

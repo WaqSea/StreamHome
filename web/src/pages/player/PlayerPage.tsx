@@ -28,9 +28,21 @@ interface PlayableAsset {
   skipMarkers: Record<string, unknown>;
 }
 
+interface ResolvedPlayback {
+  asset: PlayableAsset;
+  episodeSequence: Episode[];
+}
+
 function episodeTmdbId(mediaId: string): number | null {
   const match = mediaId.match(/^ep_(\d+)_s\d+_e\d+$/);
   return match ? Number(match[1]) : null;
+}
+
+export function nextPlayableEpisode(episodes: Episode[], currentId: string): Episode | null {
+  const ordered = [...episodes].sort((left, right) => left.seasonNumber - right.seasonNumber || left.episodeNumber - right.episodeNumber);
+  const currentIndex = ordered.findIndex((episode) => episode.id === currentId);
+  if (currentIndex < 0) return null;
+  return ordered.slice(currentIndex + 1).find((episode) => Boolean(episode.videoUrl)) ?? null;
 }
 
 function assetFromMovie(movie: Movie): PlayableAsset {
@@ -93,6 +105,7 @@ export function PlayerPage() {
   const seekTimerRef = useRef<number | null>(null);
   const trackingTimerRef = useRef<number | null>(null);
   const [asset, setAsset] = useState<PlayableAsset | null>(null);
+  const [episodeSequence, setEpisodeSequence] = useState<Episode[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [isPlaying, setIsPlaying] = useState(false);
@@ -104,23 +117,35 @@ export function PlayerPage() {
   const [audioTrack, setAudioTrack] = useState(0);
   const [streamStart, setStreamStart] = useState(0);
   const [showControls, setShowControls] = useState(true);
+  const [seriesComplete, setSeriesComplete] = useState(false);
 
   useEffect(() => {
     let active = true;
     setLoading(true);
     setError("");
+    setAsset(null);
+    setEpisodeSequence([]);
+    setCurrentTime(0);
+    setDuration(0);
+    setStreamStart(0);
+    setSeriesComplete(false);
     const resolveAsset = async () => {
       const catalog = await getMovies();
       if (mediaId.startsWith("m_")) {
         const movie = catalog.find((item) => item.id === mediaId);
         if (!movie) throw new Error("This movie is not present in the server catalog.");
-        return assetFromMovie(movie);
+        return { asset: assetFromMovie(movie), episodeSequence: [] } satisfies ResolvedPlayback;
       }
       if (mediaId.startsWith("tv_")) throw new Error("Choose a playable episode before opening the player.");
       if (mediaId.startsWith("ep_")) {
         for (const movie of catalog.filter((item) => item.type === "series")) {
           const embedded = movie.episodes?.find((episode) => episode.id === mediaId);
-          if (embedded) return assetFromEpisode(movie, embedded);
+          if (embedded) {
+            const tmdbId = episodeTmdbId(mediaId);
+            const sequence = tmdbId === null ? movie.episodes ?? [embedded] : await getEpisodes(tmdbId).catch(() => movie.episodes ?? [embedded]);
+            const resolvedEpisode = sequence.find((episode) => episode.id === mediaId) ?? embedded;
+            return { asset: assetFromEpisode(movie, resolvedEpisode), episodeSequence: sequence } satisfies ResolvedPlayback;
+          }
         }
         const tmdbId = episodeTmdbId(mediaId);
         if (tmdbId !== null) {
@@ -128,7 +153,7 @@ export function PlayerPage() {
           if (movie) {
             const episodes = await getEpisodes(tmdbId);
             const episode = episodes.find((item) => item.id === mediaId);
-            if (episode) return assetFromEpisode(movie, episode);
+            if (episode) return { asset: assetFromEpisode(movie, episode), episodeSequence: episodes } satisfies ResolvedPlayback;
           }
         }
       }
@@ -138,8 +163,10 @@ export function PlayerPage() {
     resolveAsset()
       .then((resolved) => {
         if (!active) return;
-        if (!resolved.videoUrl) throw new Error("The server did not provide a playable media file.");
-        setAsset(resolved);
+        if (!resolved.asset.videoUrl) throw new Error("The server did not provide a playable media file.");
+        setAsset(resolved.asset);
+        setEpisodeSequence(resolved.episodeSequence);
+        setAudioTrack((track) => Math.min(track, Math.max(0, resolved.asset.languages.length - 1)));
       })
       .catch((requestError: unknown) => { if (active) setError(requestError instanceof Error ? requestError.message : "Playback could not be initialized."); })
       .finally(() => { if (active) setLoading(false); });
@@ -148,6 +175,7 @@ export function PlayerPage() {
 
   const videoSrc = useMemo(() => asset && token ? `/api/stream/${encodeURIComponent(asset.id)}?quality=${encodeURIComponent(quality)}&audio_track=${audioTrack}&start=${Math.max(0, streamStart)}&token=${encodeURIComponent(token)}` : "", [asset, token, quality, audioTrack, streamStart]);
   const skipMarker = asset ? activeSkipMarker(asset.skipMarkers, currentTime) : null;
+  const nextEpisode = asset?.episodeId ? nextPlayableEpisode(episodeSequence, asset.episodeId) : null;
 
   const safePlay = useCallback(() => {
     void videoRef.current?.play().catch(() => setError("The browser could not start playback."));
@@ -189,6 +217,26 @@ export function PlayerPage() {
       isFinished: finished,
     }).catch(() => undefined);
   }, [asset, currentTime, duration, profile]);
+
+  const finishPlayback = useCallback(() => {
+    setIsPlaying(false);
+    reportProgress(true);
+    if (nextEpisode) {
+      setCurrentTime(0);
+      setDuration(0);
+      setStreamStart(0);
+      navigate(appUrl(profile.id, "watch", { media: nextEpisode.id }), { replace: true, state: location.state });
+      return;
+    }
+    if (asset?.episodeId) setSeriesComplete(true);
+  }, [asset?.episodeId, location.state, navigate, nextEpisode, profile.id, reportProgress]);
+
+  const replay = useCallback(() => {
+    setSeriesComplete(false);
+    setCurrentTime(0);
+    if (videoRef.current) videoRef.current.currentTime = 0;
+    safePlay();
+  }, [safePlay]);
 
   useEffect(() => {
     if (!asset) return;
@@ -249,13 +297,14 @@ export function PlayerPage() {
         onDurationChange={() => setDuration(Number.isFinite(videoRef.current?.duration) ? (videoRef.current?.duration ?? 0) : 0)}
         onLoadedMetadata={() => { if (streamStart > 0 && videoRef.current) videoRef.current.currentTime = streamStart; safePlay(); }}
         onVolumeChange={() => { setVolume(videoRef.current?.volume ?? 1); setMuted(videoRef.current?.muted ?? false); }}
-        onEnded={() => { setIsPlaying(false); reportProgress(true); }}
+        onEnded={finishPlayback}
         onError={() => setError("The server stream could not be played.")}
       >
         {usableSubtitles.map((subtitle) => <track key={`${subtitle.language}-${subtitle.url ?? subtitle.path}`} kind="subtitles" src={subtitle.url ?? subtitle.path} srcLang={subtitle.language} label={subtitle.language.toUpperCase()} />)}
       </video>
 
       {skipMarker && <Button className="absolute bottom-32 right-8 z-30" onClick={() => seek(skipMarker.end)}>{skipMarker.label}</Button>}
+      {seriesComplete && <div className="player-complete-panel"><p>EPISODE QUEUE</p><h2>Series complete</h2><span>No later playable episode was returned by the server.</span><div><button onClick={replay}>Replay episode</button><button onClick={exitPlayer}>Back</button></div></div>}
 
       <div className={`player-controls absolute inset-x-0 bottom-0 bg-gradient-to-t from-black via-black/80 to-transparent px-5 pb-6 pt-24 transition-opacity md:px-10 ${showControls || !isPlaying ? "opacity-100" : "pointer-events-none opacity-0"}`}>
         <div className="mx-auto max-w-7xl">
