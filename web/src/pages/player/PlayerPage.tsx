@@ -3,11 +3,9 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../stores/authStore';
 import { useThemeStore } from '../../stores/themeStore';
 import { EmberPlayer } from './EmberPlayer';
-
-// Stubs for other players
-const AuroraPlayer = (props: any) => <div className="fixed inset-0 bg-black text-white p-8">Aurora Player Loading...</div>;
-const CinemaPlayer = (props: any) => <div className="fixed inset-0 bg-black text-white p-8">Cinema Player Loading...</div>;
-const GeminiPlayer = (props: any) => <div className="fixed inset-0 bg-black text-white p-8">Gemini Player Loading...</div>;
+import { AuroraPlayer } from './AuroraPlayer';
+import { CinemaPlayer } from './CinemaPlayer';
+import { GeminiPlayer } from './GeminiPlayer';
 
 export function PlayerPage() {
   const { mediaId } = useParams();

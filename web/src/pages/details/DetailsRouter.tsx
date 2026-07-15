@@ -1,6 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { useThemeStore } from '../../stores/themeStore';
 import { EmberDetails } from './EmberDetails';
+import { AuroraDetails } from './AuroraDetails';
+import { CinemaDetails } from './CinemaDetails';
+import { GeminiDetails } from './GeminiDetails';
 import { getMovie } from '../../api/movies';
 import { Movie } from '../../types/api';
 
@@ -15,13 +18,11 @@ export function DetailsRouter({ movieId, onClose }: DetailsRouterProps) {
 
   useEffect(() => {
     let mounted = true;
-    // getMovie doesn't exist yet, we'll assume it will.
-    // For now we mock it or fetch from movies list
     getMovie(movieId).then(data => {
       if (mounted) setMovie(data);
     }).catch(err => {
       console.error(err);
-      if (mounted) onClose(); // close on error
+      if (mounted) onClose();
     });
     return () => { mounted = false; };
   }, [movieId, onClose]);
@@ -30,11 +31,11 @@ export function DetailsRouter({ movieId, onClose }: DetailsRouterProps) {
 
   switch (activeTheme) {
     case 'aurora':
-      return <div className="fixed inset-0 z-100 bg-black/80 text-white flex items-center justify-center" onClick={onClose}>Aurora Details Loading...</div>;
+      return <AuroraDetails movie={movie} onClose={onClose} />;
     case 'cinema':
-      return <div className="fixed inset-0 z-100 bg-black/90 text-white flex items-center justify-center" onClick={onClose}>Cinema Details Loading...</div>;
+      return <CinemaDetails movie={movie} onClose={onClose} />;
     case 'gemini':
-      return <div className="fixed inset-0 z-100 bg-white/10 backdrop-blur-md text-white flex items-center justify-center" onClick={onClose}>Gemini Details Loading...</div>;
+      return <GeminiDetails movie={movie} onClose={onClose} />;
     case 'ember':
     default:
       return <EmberDetails movie={movie} onClose={onClose} />;
