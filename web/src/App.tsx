@@ -1,45 +1,16 @@
 import React, { useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from './stores/authStore';
-import { useProfileStore } from './stores/profileStore';
 
 import { LoginPage } from './pages/LoginPage';
 import { ProfileSelectPage } from './pages/ProfileSelectPage';
 import { DashboardRouter } from './pages/dashboard/DashboardRouter';
+import { PlayerPage } from './pages/player/PlayerPage';
+import { AdminGate } from './pages/admin/AdminGate';
 
-// Stubs for future steps
-const PlayerPage = () => <div className="text-white p-8">Player (Coming Soon)</div>;
-const AdminGate = () => <div className="text-white p-8">Admin Gate (Coming Soon)</div>;
-
-function RequireAuth({ children }: { children: JSX.Element }) {
-  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
-  const location = useLocation();
-
-  if (!isAuthenticated) {
-    return <Navigate to="/login" state={{ from: location }} replace />;
-  }
-  return children;
-}
-
-function RequireProfile({ children }: { children: JSX.Element }) {
-  const activeProfile = useProfileStore((state) => state.activeProfile);
-  const location = useLocation();
-
-  if (!activeProfile) {
-    return <Navigate to="/profiles" state={{ from: location }} replace />;
-  }
-  return children;
-}
-
-function RequireAdmin({ children }: { children: JSX.Element }) {
-  const isAdmin = useProfileStore((state) => state.isAdmin);
-  const location = useLocation();
-
-  if (!isAdmin) {
-    return <Navigate to="/" state={{ from: location }} replace />;
-  }
-  return children;
-}
+import { AuthGuard } from './components/guards/AuthGuard';
+import { ProfileGuard } from './components/guards/ProfileGuard';
+import { AdminGuard } from './components/guards/AdminGuard';
 
 export default function App() {
   const loadAuth = useAuthStore((state) => state.loadFromStorage);
@@ -54,37 +25,35 @@ export default function App() {
         <Route path="/login" element={<LoginPage />} />
         
         <Route path="/profiles" element={
-          <RequireAuth>
+          <AuthGuard>
             <ProfileSelectPage />
-          </RequireAuth>
+          </AuthGuard>
         } />
         
-        <Route path="/" element={
-          <RequireAuth>
-            <RequireProfile>
+        <Route path="/*" element={
+          <AuthGuard>
+            <ProfileGuard>
               <DashboardRouter />
-            </RequireProfile>
-          </RequireAuth>
+            </ProfileGuard>
+          </AuthGuard>
         } />
         
         <Route path="/watch/:mediaId" element={
-          <RequireAuth>
-            <RequireProfile>
+          <AuthGuard>
+            <ProfileGuard>
               <PlayerPage />
-            </RequireProfile>
-          </RequireAuth>
+            </ProfileGuard>
+          </AuthGuard>
         } />
         
         <Route path="/admin/*" element={
-          <RequireAuth>
-            <RequireAdmin>
+          <AuthGuard>
+            <AdminGuard>
               <AdminGate />
-            </RequireAdmin>
-          </RequireAuth>
+            </AdminGuard>
+          </AuthGuard>
         } />
         
-        {/* Fallback */}
-        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
   );

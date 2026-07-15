@@ -17,15 +17,15 @@ export function EmberDetails({ movie, onClose }: EmberDetailsProps) {
   const [plotText, setPlotText] = useState('');
   
   useEffect(() => {
-    if (!movie.plot) return;
+    if (!movie.description) return;
     let i = 0;
     const interval = setInterval(() => {
-      setPlotText(movie.plot.substring(0, i));
+      setPlotText(movie.description.substring(0, i));
       i++;
-      if (i > movie.plot.length) clearInterval(interval);
+      if (i > movie.description.length) clearInterval(interval);
     }, 10);
     return () => clearInterval(interval);
-  }, [movie.plot]);
+  }, [movie.description]);
 
   const handlePlay = () => {
     navigate(`/watch/${movie.id}`);
@@ -60,7 +60,7 @@ export function EmberDetails({ movie, onClose }: EmberDetailsProps) {
         <div className="w-full md:w-1/3 flex-shrink-0">
           <GlassPane className="p-4" spotlight={true}>
             <img 
-              src={movie.poster_url || ''} 
+              src={movie.thumbnailUrl || ''} 
               alt={movie.title}
               className="w-full h-auto aspect-[2/3] object-cover rounded-[calc(var(--radius)-4px)]"
             />
@@ -75,7 +75,7 @@ export function EmberDetails({ movie, onClose }: EmberDetailsProps) {
 
           <div className="flex flex-wrap gap-3 mb-8">
             <Chip label="4K HDR" />
-            {movie.year && <Chip label={movie.year.toString()} />}
+            {movie.releaseYear && <Chip label={movie.releaseYear.toString()} />}
             {movie.duration && <Chip label={formatDuration(movie.duration)} />}
             <Chip label="IMDB 8.4" />
           </div>

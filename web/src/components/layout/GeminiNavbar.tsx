@@ -14,7 +14,7 @@ export function GeminiNavbar() {
     { label: 'Downloads', active: false },
   ];
 
-  const profileColor = activeProfile?.avatar_color || '#4285F4';
+  const profileColor = activeProfile?.avatarColor || '#4285F4';
 
   return (
     <>

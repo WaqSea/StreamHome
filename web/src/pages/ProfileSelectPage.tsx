@@ -1,17 +1,17 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useProfileStore } from '../../stores/profileStore';
-import { useThemeStore } from '../../stores/themeStore';
-import { getProfiles } from '../../api/profiles';
-import { Profile } from '../../types/api';
-import { ThemeId } from '../../types/theme';
-import { cn } from '../../utils/cn';
-import { GlassPane } from '../../components/ui/GlassPane';
-import { EmberBackground } from '../../themes/ember/EmberBackground';
-import { AuroraBackground } from '../../themes/aurora/AuroraBackground';
-import { CinemaBackground } from '../../themes/cinema/CinemaBackground';
-import { GeminiBackground } from '../../themes/gemini/GeminiBackground';
-import { ScanLines } from '../../themes/ember/ScanLines';
+import { useProfileStore } from '../stores/profileStore';
+import { useThemeStore } from '../stores/themeStore';
+import { getProfiles } from '../api/profiles';
+import { Profile } from '../types/api';
+import { ThemeId } from '../types/theme';
+import { cn } from '../utils/cn';
+import { GlassPane } from '../components/ui/GlassPane';
+import { EmberBackground } from '../themes/ember/EmberBackground';
+import { AuroraBackground } from '../themes/aurora/AuroraBackground';
+import { CinemaBackground } from '../themes/cinema/CinemaBackground';
+import { GeminiBackground } from '../themes/gemini/GeminiBackground';
+import { ScanLines } from '../themes/ember/ScanLines';
 
 export function ProfileSelectPage() {
   const navigate = useNavigate();
@@ -67,7 +67,7 @@ export function ProfileSelectPage() {
           <div className="text-[var(--text-muted)] font-[family-name:var(--font-mono)]">LOADING DATA...</div>
         ) : (
           <div className="flex flex-wrap items-center justify-center gap-8">
-            {profiles.map((profile) => (
+            {profiles.map((profile: Profile) => (
               <GlassPane
                 key={profile.id}
                 as="button"

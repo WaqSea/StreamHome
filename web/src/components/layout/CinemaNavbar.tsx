@@ -21,7 +21,7 @@ export function CinemaNavbar() {
     { label: 'Downloads', active: false },
   ];
 
-  const profileColor = activeProfile?.avatar_color || '#E50914';
+  const profileColor = activeProfile?.avatarColor || '#E50914';
 
   return (
     <nav

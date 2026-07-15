@@ -12,7 +12,7 @@ export function AuroraNavbar() {
     { label: 'Downloads', active: false },
   ];
 
-  const profileColor = activeProfile?.avatar_color || '#888888';
+  const profileColor = activeProfile?.avatarColor || '#888888';
 
   return (
     <nav className="fixed top-[16px] left-1/2 -translate-x-1/2 z-50">

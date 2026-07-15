@@ -67,7 +67,7 @@ export function MediaRow({ title, items, playbackSessions, onSelect }: MediaRowP
           className="flex gap-4 overflow-x-hidden scroll-smooth py-4 -my-4 px-4 -mx-4 no-scrollbar"
         >
           {items.map(movie => {
-            const session = playbackSessions?.find(s => s.movie_id === movie.id);
+            const session = playbackSessions?.find(s => s.movieId === movie.id);
             return (
               <MediaCard 
                 key={movie.id} 

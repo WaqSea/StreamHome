@@ -31,7 +31,7 @@ export function CinemaDetails({ movie, onClose }: CinemaDetailsProps) {
       {/* Background Poster */}
       <div className="absolute inset-0 z-0">
         <img 
-          src={movie.backdrop_url || movie.poster_url || ''} 
+          src={movie.bannerUrl || movie.thumbnailUrl || ''} 
           alt={movie.title}
           className="w-full h-[80vh] object-cover opacity-50"
         />
@@ -61,14 +61,14 @@ export function CinemaDetails({ movie, onClose }: CinemaDetailsProps) {
           
           <div className="flex items-center gap-4 font-[family-name:var(--font-body)] text-[16px] font-semibold text-white/90 mb-8 drop-shadow-md">
             <span className="text-green-500 font-bold">98% Match</span>
-            {movie.year && <span>{movie.year}</span>}
+            {movie.releaseYear && <span>{movie.releaseYear}</span>}
             <span className="border border-white/40 px-2 rounded-sm text-sm text-white/70">TV-MA</span>
             {movie.duration && <span>{formatDuration(movie.duration)}</span>}
             <span className="border border-white/40 px-2 rounded-sm text-sm text-white/70">HD</span>
           </div>
 
           <p className="font-[family-name:var(--font-body)] text-xl leading-snug mb-10 text-white/80 max-w-2xl drop-shadow-md">
-            {movie.plot}
+            {movie.description}
           </p>
 
           <div className="flex gap-4">

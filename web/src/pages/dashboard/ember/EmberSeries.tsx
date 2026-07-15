@@ -17,7 +17,7 @@ export function EmberSeries() {
     // and filtering mock-style, or assuming backend `type` field exists.
     getMovies().then(data => {
       if (mounted) {
-        setSeries(data.filter(m => m.tmdb_id && m.title.includes('Series'))); // Mock filter if type isn't robust yet
+        setSeries(data.filter(m => m.id && m.title.includes('Series'))); // Mock filter if type isn't robust yet
         setIsLoading(false);
       }
     });
@@ -41,7 +41,7 @@ export function EmberSeries() {
       {series.length > 0 && (
         <GlassPane className="w-full h-[40vh] mb-12 relative overflow-hidden" spotlight={false}>
           <img 
-            src={series[0].backdrop_url || series[0].poster_url || ''} 
+            src={series[0].bannerUrl || series[0].thumbnailUrl || ''} 
             alt={series[0].title}
             className="absolute inset-0 w-full h-full object-cover opacity-60"
           />

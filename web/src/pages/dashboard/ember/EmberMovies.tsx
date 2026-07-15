@@ -43,7 +43,7 @@ export function EmberMovies() {
       {movies.length > 0 && (
         <GlassPane className="w-full h-[40vh] mb-12 relative overflow-hidden" spotlight={false}>
           <img 
-            src={movies[0].backdrop_url || movies[0].poster_url || ''} 
+            src={movies[0].bannerUrl || movies[0].thumbnailUrl || ''} 
             alt={movies[0].title}
             className="absolute inset-0 w-full h-full object-cover opacity-60"
           />
@@ -53,7 +53,7 @@ export function EmberMovies() {
               {movies[0].title}
             </h1>
             <p className="font-[family-name:var(--font-body)] text-[var(--text-secondary)] mt-2 line-clamp-2">
-              {movies[0].plot}
+              {movies[0].description}
             </p>
           </div>
         </GlassPane>

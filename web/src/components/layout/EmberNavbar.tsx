@@ -21,7 +21,7 @@ export function EmberNavbar() {
     { label: 'Downloads', active: false },
   ];
 
-  const profileColor = activeProfile?.avatar_color || '#ff5f1f';
+  const profileColor = activeProfile?.avatarColor || '#ff5f1f';
 
   return (
     <nav

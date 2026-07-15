@@ -45,8 +45,8 @@ export function MediaCard({ movie, playbackSession, onSelect }: MediaCardProps) 
   };
 
   let progress = 0;
-  if (playbackSession && playbackSession.duration > 0) {
-    progress = playbackSession.position / playbackSession.duration;
+  if (playbackSession && playbackSession.durationWatched > 0) {
+    progress = playbackSession.timestamp / playbackSession.durationWatched;
   }
 
   return (
@@ -73,7 +73,7 @@ export function MediaCard({ movie, playbackSession, onSelect }: MediaCardProps) 
         }}
       >
         <img 
-          src={movie.poster_url || ''} 
+          src={movie.thumbnailUrl || ''} 
           alt={movie.title}
           className="absolute inset-0 w-full h-full object-cover rounded-[calc(var(--radius)-1px)] select-none"
         />

@@ -1,13 +1,13 @@
 import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { useAuthStore } from '../../stores/authStore';
-import { login, verify2FA } from '../../api/auth';
-import { EmberBackground } from '../../themes/ember/EmberBackground';
-import { ScanLines } from '../../themes/ember/ScanLines';
-import { GlassPane } from '../../components/ui/GlassPane';
-import { Input } from '../../components/ui/Input';
-import { Button } from '../../components/ui/Button';
+import { useAuthStore } from '../stores/authStore';
+import { login, verify2FA } from '../api/auth';
+import { EmberBackground } from '../themes/ember/EmberBackground';
+import { ScanLines } from '../themes/ember/ScanLines';
+import { GlassPane } from '../components/ui/GlassPane';
+import { Input } from '../components/ui/Input';
+import { Button } from '../components/ui/Button';
 
 export function LoginPage() {
   const navigate = useNavigate();
@@ -28,12 +28,12 @@ export function LoginPage() {
     setIsLoading(true);
 
     try {
-      const res = await login({ username: email, password });
+      const res = await login({ email, password });
       
-      if (res.requires_2fa) {
+      if ((res as any).requires2fa) {
         setRequires2FA(true);
-      } else if (res.access_token) {
-        setToken(res.access_token, email);
+      } else if ((res as any).accessToken) {
+        setToken((res as any).accessToken, email);
         navigate('/profiles');
       }
     } catch (err: any) {
@@ -62,8 +62,8 @@ export function LoginPage() {
       try {
         const code = newCode.join('');
         const res = await verify2FA({ email, code });
-        if (res.access_token) {
-          setToken(res.access_token, email);
+        if ((res as any).accessToken) {
+          setToken((res as any).accessToken, email);
           navigate('/profiles');
         }
       } catch (err: any) {
@@ -117,7 +117,7 @@ export function LoginPage() {
                     label="Email Address"
                     type="email"
                     value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)}
                     required
                     disabled={isLoading}
                   />
@@ -125,7 +125,7 @@ export function LoginPage() {
                     label="Master Password"
                     type="password"
                     value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
                     required
                     disabled={isLoading}
                   />
@@ -154,7 +154,7 @@ export function LoginPage() {
                     {totpCode.map((digit, i) => (
                       <input
                         key={i}
-                        ref={(el) => (inputRefs.current[i] = el)}
+                        ref={(el) => { inputRefs.current[i] = el; }}
                         type="text"
                         maxLength={1}
                         value={digit}

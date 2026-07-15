@@ -1,4 +1,5 @@
-export function formatDuration(seconds: number): string {
+export function formatDuration(seconds: number | string): string {
+  if (typeof seconds === "string") return seconds;
   if (isNaN(seconds) || seconds < 0) return "0:00";
   
   const h = Math.floor(seconds / 3600);

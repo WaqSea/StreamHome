@@ -44,7 +44,7 @@ export function GeminiDetails({ movie, onClose }: GeminiDetailsProps) {
       <div className="flex-1 overflow-y-auto p-8">
         <div className="w-full aspect-video rounded-xl overflow-hidden mb-8 relative shadow-lg">
           <img 
-            src={movie.backdrop_url || movie.poster_url || ''} 
+            src={movie.bannerUrl || movie.thumbnailUrl || ''} 
             alt={movie.title}
             className="w-full h-full object-cover"
           />
@@ -56,12 +56,12 @@ export function GeminiDetails({ movie, onClose }: GeminiDetailsProps) {
         
         <div className="flex gap-3 font-[family-name:var(--font-mono)] text-[var(--text-secondary)] text-sm mb-6">
           <span className="bg-[var(--glass-fill)] px-2 py-1 rounded-md border border-[var(--glass-border)]">HDR</span>
-          {movie.year && <span className="bg-[var(--glass-fill)] px-2 py-1 rounded-md border border-[var(--glass-border)]">{movie.year}</span>}
+          {movie.releaseYear && <span className="bg-[var(--glass-fill)] px-2 py-1 rounded-md border border-[var(--glass-border)]">{movie.releaseYear}</span>}
           {movie.duration && <span className="bg-[var(--glass-fill)] px-2 py-1 rounded-md border border-[var(--glass-border)]">{formatDuration(movie.duration)}</span>}
         </div>
 
         <p className="font-[family-name:var(--font-body)] text-[var(--text-primary)] leading-relaxed mb-10 opacity-90">
-          {movie.plot}
+          {movie.description}
         </p>
 
         <div className="flex flex-col gap-3">

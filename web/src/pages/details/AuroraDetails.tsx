@@ -45,7 +45,7 @@ export function AuroraDetails({ movie, onClose }: AuroraDetailsProps) {
         {/* Poster side */}
         <div className="w-full md:w-2/5 relative">
           <img 
-            src={movie.poster_url || ''} 
+            src={movie.thumbnailUrl || ''} 
             alt={movie.title}
             className="w-full h-full object-cover min-h-[500px]"
           />
@@ -60,12 +60,12 @@ export function AuroraDetails({ movie, onClose }: AuroraDetailsProps) {
           
           <div className="flex gap-4 font-[family-name:var(--font-body)] text-[var(--text-secondary)] text-sm mb-8">
             <span className="px-3 py-1 rounded-full border border-white/20 bg-white/5">4K VISION</span>
-            {movie.year && <span className="px-3 py-1 rounded-full border border-white/20 bg-white/5">{movie.year}</span>}
+            {movie.releaseYear && <span className="px-3 py-1 rounded-full border border-white/20 bg-white/5">{movie.releaseYear}</span>}
             {movie.duration && <span className="px-3 py-1 rounded-full border border-white/20 bg-white/5">{formatDuration(movie.duration)}</span>}
           </div>
 
           <p className="font-[family-name:var(--font-body)] text-[var(--text-primary)] text-lg leading-relaxed mb-10 opacity-90">
-            {movie.plot}
+            {movie.description}
           </p>
 
           <div className="flex gap-6 mt-auto">

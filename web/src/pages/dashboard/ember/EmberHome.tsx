@@ -62,7 +62,7 @@ export function EmberHome() {
       {featured && (
         <div className="w-full h-[70vh] relative overflow-hidden">
           <img 
-            src={featured.backdrop_url || featured.poster_url || ''} 
+            src={featured.bannerUrl || featured.thumbnailUrl || ''} 
             alt={featured.title}
             className="absolute inset-0 w-full h-full object-cover"
           />
@@ -82,9 +82,9 @@ export function EmberHome() {
               <h1 className="font-[family-name:var(--font-headline)] text-[var(--text-primary)] text-5xl md:text-[64px] leading-tight font-bold drop-shadow-lg">
                 {featured.title}
               </h1>
-              {featured.plot && (
+              {featured.description && (
                 <p className="font-[family-name:var(--font-body)] text-[var(--text-secondary)] text-sm md:text-base line-clamp-3 max-w-xl">
-                  {featured.plot}
+                  {featured.description}
                 </p>
               )}
               <div className="mt-4 flex gap-4">
@@ -109,7 +109,7 @@ export function EmberHome() {
         {sessions.length > 0 && (
           <MediaRow 
             title="Continue Watching" 
-            items={sessions.map(s => movies.find(m => m.id === s.movie_id)).filter(Boolean) as Movie[]}
+            items={sessions.map(s => movies.find(m => m.id === s.movieId)).filter(Boolean) as Movie[]}
             playbackSessions={sessions}
             onSelect={handleSelectMovie}
           />
