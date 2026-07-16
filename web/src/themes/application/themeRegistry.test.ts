@@ -62,4 +62,15 @@ describe("theme definition registry", () => {
       unmount();
     }
   });
+
+  it("marks Cinema navigation as scrolled after the document passes its threshold", () => {
+    Object.defineProperty(window, "scrollY", { configurable: true, value: 0 });
+    const { container } = render(React.createElement(THEME_DEFINITIONS.cinema.Navigation, navigationProps));
+    const navigation = container.querySelector(".theme-nav--cinema");
+    expect(navigation?.getAttribute("data-scrolled")).toBe("false");
+    Object.defineProperty(window, "scrollY", { configurable: true, value: 80 });
+    fireEvent.scroll(window);
+    expect(navigation?.getAttribute("data-scrolled")).toBe("true");
+    Object.defineProperty(window, "scrollY", { configurable: true, value: 0 });
+  });
 });

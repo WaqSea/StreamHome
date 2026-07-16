@@ -43,6 +43,13 @@ describe("semantic hover interaction system", () => {
     expect(ember).toContain("top: 50%; bottom: auto; width: 40px; height: 40px");
   });
 
+  it("gives Cinema navigation an opaque scrolled state and centered brand clearance", () => {
+    expect(application).toContain('.theme-nav--cinema[data-scrolled="true"]');
+    expect(application).toContain("background-color: rgba(12,12,14,.96)");
+    expect(application).toContain("padding: 6px 4vw 2px");
+    expect(application).toContain(".theme-nav--cinema .theme-brand { height: 100%; display: flex; align-items: center");
+  });
+
   it("covers every major interactive surface", () => {
     for (const selector of [
       ".theme-profile-control", ".feature-action", ".catalog-rail-blade",

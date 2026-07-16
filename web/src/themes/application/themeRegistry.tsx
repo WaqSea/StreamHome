@@ -63,7 +63,14 @@ function AuroraNavigation(props: ThemeNavigationProps) {
 }
 
 function CinemaNavigation(props: ThemeNavigationProps) {
-  return <><header className="theme-nav theme-nav--cinema"><button className="theme-brand" onClick={() => props.onView("home")}><BrandLogo className="brand-logo--nav" /></button><nav aria-label="Catalog">{NAV_ITEMS.map((item) => <button key={item.view} data-active={props.activeView === item.view} onClick={() => props.onView(item.view)}>{item.label}</button>)}</nav><div className="theme-nav__tools"><SearchForm initial={props.query} onSearch={props.onSearch} compact />{props.isAdmin && <button onClick={props.onAdmin}>Admin</button>}<ProfileControl profile={props.profile} onEditProfile={props.onEditProfile} onProfiles={props.onProfiles} onLogout={props.onLogout} /></div></header><MobileCatalogNav activeView={props.activeView} onView={props.onView} isAdmin={props.isAdmin} /></>;
+  const [scrolled, setScrolled] = useState(() => typeof window !== "undefined" && window.scrollY > 24);
+  useEffect(() => {
+    const update = () => setScrolled(window.scrollY > 24);
+    update();
+    window.addEventListener("scroll", update, { passive: true });
+    return () => window.removeEventListener("scroll", update);
+  }, []);
+  return <><header className="theme-nav theme-nav--cinema" data-scrolled={scrolled}><button className="theme-brand" onClick={() => props.onView("home")}><BrandLogo className="brand-logo--nav" /></button><nav aria-label="Catalog">{NAV_ITEMS.map((item) => <button key={item.view} data-active={props.activeView === item.view} onClick={() => props.onView(item.view)}>{item.label}</button>)}</nav><div className="theme-nav__tools"><SearchForm initial={props.query} onSearch={props.onSearch} compact />{props.isAdmin && <button onClick={props.onAdmin}>Admin</button>}<ProfileControl profile={props.profile} onEditProfile={props.onEditProfile} onProfiles={props.onProfiles} onLogout={props.onLogout} /></div></header><MobileCatalogNav activeView={props.activeView} onView={props.onView} isAdmin={props.isAdmin} /></>;
 }
 
 function GeminiNavigation(props: ThemeNavigationProps) {
