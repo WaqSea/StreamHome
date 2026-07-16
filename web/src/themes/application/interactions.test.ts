@@ -51,6 +51,15 @@ describe("semantic hover interaction system", () => {
     expect(application).not.toContain(".theme-nav--cinema[data-scrolled=\"true\"] { border-bottom");
   });
 
+  it("renders billboard state as a synchronized filling progress track", () => {
+    expect(application).toContain("width: clamp(76px,7vw,104px)");
+    expect(ember).toContain("width: clamp(80px,7vw,108px)");
+    expect(application).toContain("animation: billboard-progress var(--billboard-rotation-duration,10s) linear forwards");
+    expect(ember).toContain("animation: billboard-progress var(--billboard-rotation-duration,10s) linear forwards");
+    expect(application).not.toContain('button[data-active="true"]::after { animation: none');
+    expect(interactions).not.toContain('button[data-active="true"]::after { animation: none');
+  });
+
   it("covers every major interactive surface", () => {
     for (const selector of [
       ".theme-profile-control", ".feature-action", ".catalog-rail-blade",

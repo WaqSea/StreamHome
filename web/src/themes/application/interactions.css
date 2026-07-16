@@ -225,5 +225,4 @@
   }
   .catalog-rail-blade,.ember-rail__blade { transform: translateY(-50%) !important; }
   .interaction-button::after,.login-primary-action::after,.catalog-card::after,.ember-media-card::after { display: none; }
-  .ember-billboard__pagination button[data-active="true"]::after { animation: none; transform: scaleX(1); }
 }

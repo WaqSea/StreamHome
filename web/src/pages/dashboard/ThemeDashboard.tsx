@@ -15,7 +15,7 @@ import { DetailsRouter } from "../details/DetailsRouter";
 import { groupMoviesByGenre } from "./catalogPresentation";
 import { ServerDownloads } from "./ServerDownloads";
 import type { CatalogController } from "./useCatalogController";
-import { useRotatingFeature } from "./useRotatingFeature";
+import { ROTATION_INTERVAL, useRotatingFeature } from "./useRotatingFeature";
 import { AnimatedState, AnimatedView, CONTENT_REVEAL, CONTENT_STAGGER, REDUCED_BILLBOARD_MOTION, THEME_MOTION, useAppMotion } from "../../motion/motionSystem";
 import { useAnimatedRail } from "../../motion/useAnimatedRail";
 
@@ -51,7 +51,7 @@ function RotatingBillboard({ items, variant, context, onDetails, onPlay }: { ite
   const activeTheme = useThemeStore((state) => state.activeTheme);
   const { featured, index, setIndex, setPaused, paused, direction, source } = useRotatingFeature(rotationItems);
   if (!featured) return null;
-  return <div className="billboard-rotator" data-motion-source={source} data-motion-direction={direction} data-rotation-paused={paused} onFocusCapture={(event) => setPaused((event.target as HTMLElement).matches(":focus-visible"))} onBlurCapture={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setPaused(false); }}><AnimatePresence mode="wait" initial={false} custom={direction}><motion.div key={featured.id} custom={direction} variants={reduceMotion ? REDUCED_BILLBOARD_MOTION : THEME_MOTION[activeTheme].billboard} initial="initial" animate="animate" exit="exit"><FeaturedStage movie={featured} variant={variant} context={context} onDetails={() => onDetails(featured)} onPlay={() => onPlay(featured)} /></motion.div></AnimatePresence>{rotationItems.length > 1 && <div className="billboard-pagination" aria-label="Featured media">{rotationItems.map((movie, itemIndex) => <button key={movie.id} data-active={itemIndex === index} onClick={() => setIndex(itemIndex)} aria-label={`Show ${movie.title}`} />)}</div>}</div>;
+  return <div className="billboard-rotator" style={{ "--billboard-rotation-duration": `${ROTATION_INTERVAL}ms` } as React.CSSProperties} data-motion-source={source} data-motion-direction={direction} data-rotation-paused={paused} onFocusCapture={(event) => setPaused((event.target as HTMLElement).matches(":focus-visible"))} onBlurCapture={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setPaused(false); }}><AnimatePresence mode="wait" initial={false} custom={direction}><motion.div key={featured.id} custom={direction} variants={reduceMotion ? REDUCED_BILLBOARD_MOTION : THEME_MOTION[activeTheme].billboard} initial="initial" animate="animate" exit="exit"><FeaturedStage movie={featured} variant={variant} context={context} onDetails={() => onDetails(featured)} onPlay={() => onPlay(featured)} /></motion.div></AnimatePresence>{rotationItems.length > 1 && <div className="billboard-pagination" aria-label="Featured media">{rotationItems.map((movie, itemIndex) => <button key={movie.id} data-active={itemIndex === index} aria-current={itemIndex === index ? "true" : undefined} onClick={() => setIndex(itemIndex)} aria-label={`Show ${movie.title}`} />)}</div>}</div>;
 }
 
 function BrowseView({ query, controller, theme, variant, onOpen, onPlay }: { query: AppQueryState; controller: CatalogController; theme: string; variant: string; onOpen: (movie: Movie) => void; onPlay: (movie: Movie) => void }) {

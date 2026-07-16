@@ -49,4 +49,17 @@ describe("billboard rotation motion state", () => {
     expect(result.current.featured?.id).toBe("two");
     expect(result.current.source).toBe("automatic");
   });
+
+  it("preserves the remaining countdown while paused and resumes without drift", () => {
+    const { result } = renderHook(() => useRotatingFeature([movie("one"), movie("two")]), { wrapper });
+    act(() => vi.advanceTimersByTime(4_000));
+    act(() => result.current.setPaused(true));
+    act(() => vi.advanceTimersByTime(ROTATION_INTERVAL));
+    expect(result.current.featured?.id).toBe("one");
+    act(() => result.current.setPaused(false));
+    act(() => vi.advanceTimersByTime(5_999));
+    expect(result.current.featured?.id).toBe("one");
+    act(() => vi.advanceTimersByTime(1));
+    expect(result.current.featured?.id).toBe("two");
+  });
 });
