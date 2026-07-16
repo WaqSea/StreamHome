@@ -1,22 +1,39 @@
 import React from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
-import { MediaArtwork } from "./MediaArtwork";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { clearArtworkResolutionCache, MediaArtwork } from "./MediaArtwork";
 
 describe("MediaArtwork", () => {
+  beforeEach(() => {
+    clearArtworkResolutionCache();
+    vi.restoreAllMocks();
+  });
+
   it("does not request a web-local fallback asset", () => {
     render(<MediaArtwork src="/poster.jpg" alt="Example" />);
     expect(screen.getByLabelText("Example artwork unavailable")).toBeTruthy();
     expect(screen.queryByRole("img", { name: "Example" })).toBeNull();
   });
 
-  it("resolves and retries media-specific server artwork", () => {
+  it("probes generated server artwork before mounting the valid image", async () => {
+    const fetchMock = vi.fn(async (input: string | URL | Request) => ({ ok: String(input).includes("2025"), body: null }) as Response);
+    vi.stubGlobal("fetch", fetchMock);
     const media = { id: "m_1280738", title: "The Furious", type: "movie" as const, releaseYear: 2026 };
     render(<MediaArtwork src="/poster.jpg" alt="The Furious" media={media} />);
-    const image = screen.getByRole("img", { name: "The Furious" });
-    expect(image.getAttribute("src")).toBe("/media/Movies/The%20Furious_2026_TMDB_1280738/poster.jpg");
-    fireEvent.error(image);
-    expect(screen.getByRole("img", { name: "The Furious" }).getAttribute("src")).toBe("/media/Movies/The%20Furious_2025_TMDB_1280738/poster.jpg");
+    expect(screen.getByRole("status", { name: "The Furious artwork loading" })).toBeTruthy();
+    const image = await screen.findByRole("img", { name: "The Furious" });
+    expect(image.getAttribute("src")).toBe("/media/Movies/The%20Furious_2025_TMDB_1280738/poster.jpg");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("shares one generated-path probe across duplicate artwork instances", async () => {
+    const fetchMock = vi.fn(async (input: string | URL | Request) => ({ ok: String(input).includes("2025"), body: null }) as Response);
+    vi.stubGlobal("fetch", fetchMock);
+    const media = { id: "m_1280738", title: "The Furious", type: "movie" as const, releaseYear: 2026 };
+    render(<><MediaArtwork src="/poster.jpg" alt="First" media={media} /><MediaArtwork src="/poster.jpg" alt="Second" media={media} /></>);
+    await screen.findByRole("img", { name: "First" });
+    await screen.findByRole("img", { name: "Second" });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it("falls back when a server image fails", () => {

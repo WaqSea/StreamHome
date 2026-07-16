@@ -19,27 +19,31 @@ function matchMedia(matches: boolean) {
 describe("cinematic motion system", () => {
   beforeEach(() => Object.defineProperty(window, "matchMedia", { configurable: true, value: () => matchMedia(false) }));
 
-  it("keeps the extended cinematic timing scale", () => {
-    expect(MOTION_TIMINGS.hover).toBe(.8);
-    expect(MOTION_TIMINGS.menu).toBe(1.2);
-    expect(MOTION_TIMINGS.menuItem).toBe(.72);
-    expect(MOTION_TIMINGS.dialog).toBe(1.35);
-    expect(MOTION_TIMINGS.viewExit).toBe(.8);
-    expect(MOTION_TIMINGS.viewEnter).toBe(1.2);
-    expect(MOTION_TIMINGS.view).toBe(2);
+  it("keeps interactions responsive and cinematic transitions deliberate", () => {
+    expect(MOTION_TIMINGS.hover).toBe(.32);
+    expect(MOTION_TIMINGS.menu).toBe(.26);
+    expect(MOTION_TIMINGS.menuItem).toBe(.22);
+    expect(MOTION_TIMINGS.dialog).toBe(.42);
+    expect(MOTION_TIMINGS.viewExit).toBe(.28);
+    expect(MOTION_TIMINGS.viewEnter).toBe(.52);
+    expect(MOTION_TIMINGS.view).toBe(.8);
     expect(MOTION_TIMINGS.viewExit + MOTION_TIMINGS.viewEnter).toBe(MOTION_TIMINGS.view);
-    expect(MOTION_TIMINGS.rail).toBe(1500);
-    expect(MOTION_TIMINGS.billboard).toBe(2.3);
-    expect(MOTION_TIMINGS.profileMorph).toBe(2.2);
-    expect(MOTION_TIMINGS.profileEntry).toBe(1.3);
+    expect(MOTION_TIMINGS.menuExit).toBeLessThan(MOTION_TIMINGS.menuEnter);
+    expect(MOTION_TIMINGS.dialogExit).toBeLessThan(MOTION_TIMINGS.dialogEnter);
+    expect(MOTION_TIMINGS.controlsEnter).toBeLessThan(MOTION_TIMINGS.controlsExit);
+    expect(MOTION_TIMINGS.rail).toBe(760);
+    expect(MOTION_TIMINGS.billboard).toBe(1.05);
+    expect(MOTION_TIMINGS.profileMorph).toBe(.95);
+    expect(MOTION_TIMINGS.profileEntry).toBe(.62);
     expect(MOTION_TIMINGS.reduced).toBeGreaterThanOrEqual(.16);
   });
 
   it("defines distinct view and billboard choreography for every theme", () => {
     const definitions = Object.values(THEME_MOTION);
+    const resolve = (variant: unknown) => typeof variant === "function" ? variant(1) : variant;
     expect(definitions).toHaveLength(4);
-    expect(new Set(definitions.map((definition) => JSON.stringify(definition.view.initial))).size).toBe(4);
-    expect(definitions.every((definition) => definition.billboard.initial && definition.cardHover.scale > 1)).toBe(true);
+    expect(new Set(definitions.map((definition) => JSON.stringify(resolve(definition.view.initial)))).size).toBe(4);
+    expect(definitions.every((definition) => resolve(definition.billboard.initial) && definition.cardHover.scale > 1)).toBe(true);
   });
 
   it("exposes normal and reduced preferences through one provider", () => {

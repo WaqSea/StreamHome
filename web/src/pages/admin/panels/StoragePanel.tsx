@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import { getSettings, updateSettings } from "../../../api/system";
 import { Button } from "../../../components/ui/Button";
 import { GlassPane } from "../../../components/ui/GlassPane";
 import { Input } from "../../../components/ui/Input";
 import type { SystemSettings } from "../../../types/api";
 import { SudoModal } from "../SudoModal";
+import { MOTION_TIMINGS } from "../../../motion/motionSystem";
 
 export function StoragePanel() {
   const [settings, setSettings] = useState<SystemSettings | null>(null);
@@ -30,7 +32,7 @@ export function StoragePanel() {
         <Input label="Rclone remote path" value={draft.rcloneRemotePath} onChange={(event) => setDraft({ ...draft, rcloneRemotePath: event.target.value })} disabled={draft.storageEngine !== "CLOUD"} />
         <label className="flex flex-col gap-2"><span>HEVC compression</span><select className="rounded-[var(--radius)] border border-[var(--glass-border)] bg-[var(--bg-surface-container-lowest)] px-4 py-3" value={draft.hevcCompressionMode} onChange={(event) => setDraft({ ...draft, hevcCompressionMode: event.target.value as SystemSettings["hevcCompressionMode"] })}><option value="auto">Automatic</option><option value="on">On</option><option value="off">Off</option></select></label>
         <div><Button disabled={!dirty} onClick={() => { setMessage(""); setSudoOpen(true); }}>Save changes</Button></div>
-        {message && <p className="text-sm text-green-400">{message}</p>}{error && <p className="text-sm text-[var(--text-error)]">{error}</p>}
+        <AnimatePresence mode="wait">{error ? <motion.p key="error" className="text-sm text-[var(--text-error)]" initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: MOTION_TIMINGS.notice }}>{error}</motion.p> : message ? <motion.p key="message" className="text-sm text-green-400" initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: MOTION_TIMINGS.notice }}>{message}</motion.p> : null}</AnimatePresence>
       </GlassPane>
       <SudoModal isOpen={sudoOpen} actionLabel="Save server settings" onCancel={() => setSudoOpen(false)} onSuccess={save} />
     </section>

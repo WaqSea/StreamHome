@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import { login, verify2FA } from "../../api/auth";
 import { Button } from "../../components/ui/Button";
 import { GlassPane } from "../../components/ui/GlassPane";
@@ -7,6 +8,7 @@ import { useAuthStore } from "../../stores/authStore";
 import { useThemeStore } from "../../stores/themeStore";
 import { getThemeDefinition } from "../../themes/application/themeRegistry";
 import { AdminCenter } from "./AdminCenter";
+import { MOTION_EASE, MOTION_TIMINGS, useAppMotion } from "../../motion/motionSystem";
 
 const SESSION_KEY = "streamhome_admin_session";
 const SESSION_TTL = 24 * 60 * 60 * 1000;
@@ -23,6 +25,7 @@ export function AdminGate() {
   const [authenticated, setAuthenticated] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const { reduced } = useAppMotion();
 
   useEffect(() => {
     const raw = localStorage.getItem(SESSION_KEY);
@@ -61,22 +64,21 @@ export function AdminGate() {
     }
   };
 
-  if (authenticated) return <AdminCenter />;
+  if (authenticated) return <motion.div key="admin" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: reduced ? MOTION_TIMINGS.reduced : MOTION_TIMINGS.viewEnter }}><AdminCenter /></motion.div>;
 
   return (
     <main className={`theme-app admin-auth-screen ${definition.shellClass}`} data-theme={theme}>
       <Background />
-      <GlassPane className="admin-auth-panel" spotlight={false}>
+      <motion.div initial={reduced ? { opacity: 0 } : { opacity: 0, y: 24, scale: .97 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ duration: reduced ? MOTION_TIMINGS.reduced : MOTION_TIMINGS.dialogEnter, ease: MOTION_EASE }}><GlassPane className="admin-auth-panel" spotlight={false}>
         <h1 className="text-2xl font-semibold">Admin reauthentication</h1>
         <p className="mt-2 text-sm text-[var(--text-muted)]">Confirm the server account before opening administrative controls.</p>
         <form className="mt-7 flex flex-col gap-4" onSubmit={submit}>
           <Input label="Account email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} required disabled={needsCode} />
-          {!needsCode && <Input label="Password" type="password" value={password} onChange={(event) => setPassword(event.target.value)} required />}
-          {needsCode && <Input label="TOTP code" inputMode="numeric" maxLength={6} value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, ""))} required />}
-          {error && <p className="text-sm text-[var(--text-error)]">{error}</p>}
+          <AnimatePresence mode="wait" initial={false}>{!needsCode ? <motion.div key="password" initial={{ opacity: 0, x: reduced ? 0 : -12 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: reduced ? 0 : 12 }} transition={{ duration: reduced ? MOTION_TIMINGS.reduced : MOTION_TIMINGS.notice }}><Input label="Password" type="password" value={password} onChange={(event) => setPassword(event.target.value)} required /></motion.div> : <motion.div key="totp" initial={{ opacity: 0, x: reduced ? 0 : 12 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: reduced ? 0 : -12 }} transition={{ duration: reduced ? MOTION_TIMINGS.reduced : MOTION_TIMINGS.notice }}><Input label="TOTP code" inputMode="numeric" maxLength={6} value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, ""))} required /></motion.div>}</AnimatePresence>
+          <AnimatePresence>{error && <motion.p className="text-sm text-[var(--text-error)]" initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: MOTION_TIMINGS.notice }}>{error}</motion.p>}</AnimatePresence>
           <Button type="submit" disabled={loading}>{loading ? "Verifying…" : needsCode ? "Verify TOTP" : "Verify password"}</Button>
         </form>
-      </GlassPane>
+      </GlassPane></motion.div>
     </main>
   );
 }

@@ -33,9 +33,8 @@ export function Modal({ isOpen, onClose, children, className }: ModalProps) {
             role="dialog"
             aria-modal="true"
             initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: reduced ? MOTION_TIMINGS.reduced : MOTION_TIMINGS.dialog, ease: MOTION_EASE }}
+            animate={{ opacity: 1, transition: { duration: reduced ? MOTION_TIMINGS.reduced : MOTION_TIMINGS.dialogEnter, ease: MOTION_EASE } }}
+            exit={{ opacity: 0, transition: { duration: reduced ? MOTION_TIMINGS.reduced : MOTION_TIMINGS.dialogExit, ease: MOTION_EASE } }}
             className="absolute inset-0 bg-black/60 backdrop-blur-[8px]"
             onClick={onClose}
           />
@@ -43,9 +42,8 @@ export function Modal({ isOpen, onClose, children, className }: ModalProps) {
           {/* Content */}
           <motion.div
             initial={reduced ? { opacity: 0 } : { opacity: 0, y: 28, scale: .94 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={reduced ? { opacity: 0 } : { opacity: 0, y: 18, scale: .97 }}
-            transition={{ duration: reduced ? MOTION_TIMINGS.reduced : MOTION_TIMINGS.dialog, ease: MOTION_EASE }}
+            animate={{ opacity: 1, y: 0, scale: 1, transition: { duration: reduced ? MOTION_TIMINGS.reduced : MOTION_TIMINGS.dialogEnter, ease: MOTION_EASE } }}
+            exit={reduced ? { opacity: 0 } : { opacity: 0, y: 18, scale: .97, transition: { duration: MOTION_TIMINGS.dialogExit, ease: MOTION_EASE } }}
             className="relative z-10 w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto"
           >
             <GlassPane className={cn("p-6", className)}>

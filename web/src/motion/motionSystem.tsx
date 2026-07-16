@@ -1,20 +1,34 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { AnimatePresence, motion, type Variants } from "framer-motion";
+import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { AnimatePresence, MotionConfig, motion, type Variants } from "framer-motion";
 import type { ThemeId } from "../types/theme";
 
 export const MOTION_TIMINGS = {
-  hover: 0.8,
-  menu: 1.2,
-  menuItem: 0.72,
-  dialog: 1.35,
-  viewExit: 0.8,
-  viewEnter: 1.2,
-  view: 2,
-  rail: 1500,
-  billboard: 2.3,
-  profileMorph: 2.2,
-  profileEntry: 1.3,
-  reduced: 0.18,
+  instant: 0.12,
+  press: 0.14,
+  hover: 0.32,
+  focus: 0.28,
+  menu: 0.26,
+  menuEnter: 0.26,
+  menuExit: 0.18,
+  menuItem: 0.22,
+  menuStagger: 0.045,
+  dialog: 0.42,
+  dialogEnter: 0.42,
+  dialogExit: 0.26,
+  viewExit: 0.28,
+  viewEnter: 0.52,
+  view: 0.8,
+  rail: 760,
+  billboard: 1.05,
+  billboardCopy: 0.62,
+  profileMorph: 0.95,
+  profileEntry: 0.62,
+  artwork: 0.5,
+  list: 0.42,
+  notice: 0.32,
+  controlsEnter: 0.22,
+  controlsExit: 0.42,
+  reduced: 0.16,
 } as const;
 
 export const MOTION_EASE = [0.16, 1, 0.3, 1] as const;
@@ -25,8 +39,15 @@ export interface ThemeMotionDefinition {
   cardHover: { y: number; scale: number };
 }
 
+function directional(values: Record<string, string | number>, direction: number) {
+  return {
+    ...values,
+    x: typeof values.x === "number" ? values.x * direction : values.x,
+  };
+}
+
 const viewVariants = (initial: Record<string, string | number>, exit: Record<string, string | number>): Variants => ({
-  initial,
+  initial: (direction: number = 1) => directional(initial, direction),
   animate: {
     opacity: 1,
     x: 0,
@@ -35,7 +56,7 @@ const viewVariants = (initial: Record<string, string | number>, exit: Record<str
     filter: "blur(0px)",
     transition: { duration: MOTION_TIMINGS.viewEnter, ease: MOTION_EASE },
   },
-  exit: { ...exit, transition: { duration: MOTION_TIMINGS.viewExit, ease: MOTION_EASE } },
+  exit: (direction: number = 1) => ({ ...directional(exit, direction), transition: { duration: MOTION_TIMINGS.viewExit, ease: MOTION_EASE } }),
 });
 
 const billboardVariants = (initial: Record<string, string | number>, exit: Record<string, string | number>): Variants => ({
@@ -89,7 +110,7 @@ export function MotionProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
   const value = useMemo(() => ({ reduced: Boolean(prefersReduced), documentHidden }), [documentHidden, prefersReduced]);
-  return <MotionContext.Provider value={value}>{children}</MotionContext.Provider>;
+  return <MotionConfig reducedMotion="user"><MotionContext.Provider value={value}>{children}</MotionContext.Provider></MotionConfig>;
 }
 
 export function useAppMotion(): MotionContextValue {
@@ -105,18 +126,55 @@ export function resetApplicationScroll(): void {
   window.scrollTo({ top: 0, left: 0, behavior: "auto" });
 }
 
+const VIEW_ORDER = ["home", "movies", "series", "watchlist", "downloads", "search", "details", "watch", "admin"];
+
+function viewDirection(previous: string, next: string): -1 | 1 {
+  const previousIndex = VIEW_ORDER.indexOf(previous.split(":")[0]);
+  const nextIndex = VIEW_ORDER.indexOf(next.split(":")[0]);
+  if (previousIndex < 0 || nextIndex < 0 || previousIndex === nextIndex) return 1;
+  return nextIndex > previousIndex ? 1 : -1;
+}
+
+export const CONTENT_STAGGER: Variants = {
+  hidden: {},
+  shown: { transition: { delayChildren: 0.08, staggerChildren: 0.065 } },
+};
+
+export const CONTENT_REVEAL: Variants = {
+  hidden: { opacity: 0, y: 18, filter: "blur(7px)" },
+  shown: { opacity: 1, y: 0, filter: "blur(0px)", transition: { duration: MOTION_TIMINGS.list, ease: MOTION_EASE } },
+  exit: { opacity: 0, y: -8, filter: "blur(4px)", transition: { duration: MOTION_TIMINGS.viewExit, ease: MOTION_EASE } },
+};
+
+export function AnimatedState({ stateKey, className, children }: { stateKey: string; className?: string; children: React.ReactNode }) {
+  const { reduced } = useAppMotion();
+  const transition = { duration: reduced ? MOTION_TIMINGS.reduced : MOTION_TIMINGS.list, ease: MOTION_EASE };
+  return <AnimatePresence mode="wait" initial={false}><motion.div
+    key={stateKey}
+    className={className}
+    initial={reduced ? { opacity: 0 } : { opacity: 0, y: 12, filter: "blur(6px)" }}
+    animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+    exit={reduced ? { opacity: 0 } : { opacity: 0, y: -8, filter: "blur(4px)" }}
+    transition={transition}
+  >{children}</motion.div></AnimatePresence>;
+}
+
 export function AnimatedView({ theme, viewKey, children }: { theme: ThemeId; viewKey: string; children: React.ReactNode }) {
   const { reduced } = useAppMotion();
   const definition = THEME_MOTION[theme];
+  const previousKey = useRef(viewKey);
+  const direction = viewDirection(previousKey.current, viewKey);
+  useEffect(() => { previousKey.current = viewKey; }, [viewKey]);
   const reducedVariants: Variants = {
     initial: { opacity: 0 },
     animate: { opacity: 1, transition: { duration: MOTION_TIMINGS.reduced, ease: MOTION_EASE } },
     exit: { opacity: 0, transition: { duration: MOTION_TIMINGS.reduced, ease: MOTION_EASE } },
   };
-  return <AnimatePresence mode="wait" initial={false} onExitComplete={resetApplicationScroll}>
+  return <AnimatePresence mode="wait" custom={direction} onExitComplete={resetApplicationScroll}>
     <motion.div
       className="motion-view"
       key={viewKey}
+      custom={direction}
       variants={reduced ? reducedVariants : definition.view}
       initial="initial"
       animate="animate"

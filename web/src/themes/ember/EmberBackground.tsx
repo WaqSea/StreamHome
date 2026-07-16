@@ -38,7 +38,7 @@ export function EmberBackground({ suspendWhenHidden = false, respectReducedMotio
           y: Math.random() * canvas.height,
           size: Math.random() * 2 + 1, // 1-3px
           opacity: Math.random() * 0.6 + 0.3, // 0.3-0.9
-          speed: Math.random() * 4 + 3,
+          speed: Math.random() * 10 + 8,
           drift: (Math.random() - .5) * .8,
         });
       }

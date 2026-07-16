@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import { useLocation, useNavigate } from "react-router-dom";
 import { getEpisodes, getMovies } from "../../api/movies";
 import { trackPlayback } from "../../api/playback";
@@ -11,6 +12,7 @@ import { getThemeDefinition } from "../../themes/application/themeRegistry";
 import type { Episode, Movie, SubtitleInfo } from "../../types/api";
 import { formatDuration } from "../../utils/format";
 import { isServerArtworkUrl } from "../../utils/media";
+import { MOTION_EASE, MOTION_TIMINGS, useAppMotion } from "../../motion/motionSystem";
 
 const QUALITIES = ["Source", "1080p", "720p", "480p", "360p", "240p"] as const;
 
@@ -104,6 +106,7 @@ export function PlayerPage() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const seekTimerRef = useRef<number | null>(null);
   const trackingTimerRef = useRef<number | null>(null);
+  const controlsTimerRef = useRef<number | null>(null);
   const [asset, setAsset] = useState<PlayableAsset | null>(null);
   const [episodeSequence, setEpisodeSequence] = useState<Episode[]>([]);
   const [loading, setLoading] = useState(true);
@@ -118,6 +121,8 @@ export function PlayerPage() {
   const [streamStart, setStreamStart] = useState(0);
   const [showControls, setShowControls] = useState(true);
   const [seriesComplete, setSeriesComplete] = useState(false);
+  const [buffering, setBuffering] = useState(false);
+  const { reduced } = useAppMotion();
 
   useEffect(() => {
     let active = true;
@@ -129,6 +134,7 @@ export function PlayerPage() {
     setDuration(0);
     setStreamStart(0);
     setSeriesComplete(false);
+    setBuffering(false);
     const resolveAsset = async () => {
       const catalog = await getMovies();
       if (mediaId.startsWith("m_")) {
@@ -261,17 +267,22 @@ export function PlayerPage() {
     return () => window.removeEventListener("keydown", handleKey);
   }, [currentTime, exitPlayer, isPlaying, safePlay, seek, toggleFullscreen]);
 
-  useEffect(() => {
-    let timeout: number | undefined;
-    const reveal = () => {
+  const revealControls = useCallback(() => {
       setShowControls(true);
-      window.clearTimeout(timeout);
-      if (isPlaying) timeout = window.setTimeout(() => setShowControls(false), 3000);
-    };
-    window.addEventListener("mousemove", reveal);
-    window.addEventListener("touchstart", reveal, { passive: true });
-    return () => { window.removeEventListener("mousemove", reveal); window.removeEventListener("touchstart", reveal); window.clearTimeout(timeout); };
+      if (controlsTimerRef.current) window.clearTimeout(controlsTimerRef.current);
+      if (isPlaying) controlsTimerRef.current = window.setTimeout(() => setShowControls(false), 3000);
   }, [isPlaying]);
+
+  useEffect(() => {
+    window.addEventListener("mousemove", revealControls);
+    window.addEventListener("touchstart", revealControls, { passive: true });
+    revealControls();
+    return () => {
+      window.removeEventListener("mousemove", revealControls);
+      window.removeEventListener("touchstart", revealControls);
+      if (controlsTimerRef.current) window.clearTimeout(controlsTimerRef.current);
+    };
+  }, [revealControls]);
 
   const changeStream = (nextQuality: (typeof QUALITIES)[number], nextAudio = audioTrack) => {
     setStreamStart(videoRef.current?.currentTime ?? currentTime);
@@ -279,20 +290,23 @@ export function PlayerPage() {
     setAudioTrack(nextAudio);
   };
 
-  if (loading) return <div className="grid min-h-screen place-items-center bg-black text-white">Loading media from the server…</div>;
-  if (error || !asset) return <div className="grid min-h-screen place-items-center bg-black p-6 text-white"><div className="max-w-lg text-center"><h1 className="text-2xl font-semibold">Playback unavailable</h1><p className="mt-3 text-white/60">{error}</p><Button className="mt-6" onClick={exitPlayer}>Go back</Button></div></div>;
+  if (loading) return <motion.div className="grid min-h-screen place-items-center bg-black text-white" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}><motion.span animate={reduced ? undefined : { opacity: [.45, 1, .45] }} transition={{ duration: 1.4, repeat: Infinity }}>Loading media from the server…</motion.span></motion.div>;
+  if (error || !asset) return <motion.div className="grid min-h-screen place-items-center bg-black p-6 text-white" initial={{ opacity: 0 }} animate={{ opacity: 1 }}><motion.div className="max-w-lg text-center" initial={reduced ? { opacity: 0 } : { opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: reduced ? MOTION_TIMINGS.reduced : MOTION_TIMINGS.dialogEnter, ease: MOTION_EASE }}><h1 className="text-2xl font-semibold">Playback unavailable</h1><p className="mt-3 text-white/60">{error}</p><Button className="mt-6" onClick={exitPlayer}>Go back</Button></motion.div></motion.div>;
 
   const usableSubtitles = asset.subtitles.filter((subtitle) => isServerArtworkUrl(subtitle.url ?? subtitle.path));
 
   return (
-    <div ref={containerRef} className="player-view fixed inset-0 z-[200] bg-black text-white" data-theme={theme} data-player-theme={definition.playerVariant} onClick={() => setShowControls(true)}>
+    <motion.div ref={containerRef} className="player-view fixed inset-0 z-[200] bg-black text-white" data-theme={theme} data-player-theme={definition.playerVariant} onClick={revealControls} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: reduced ? MOTION_TIMINGS.reduced : MOTION_TIMINGS.viewEnter }}>
       <video
         ref={videoRef}
         src={videoSrc}
         className="h-full w-full object-contain"
         autoPlay
-        onPlay={() => setIsPlaying(true)}
+        onPlay={() => { setIsPlaying(true); setBuffering(false); }}
         onPause={() => setIsPlaying(false)}
+        onWaiting={() => setBuffering(true)}
+        onPlaying={() => setBuffering(false)}
+        onCanPlay={() => setBuffering(false)}
         onTimeUpdate={() => { if (!seekTimerRef.current) setCurrentTime(videoRef.current?.currentTime ?? 0); }}
         onDurationChange={() => setDuration(Number.isFinite(videoRef.current?.duration) ? (videoRef.current?.duration ?? 0) : 0)}
         onLoadedMetadata={() => { if (streamStart > 0 && videoRef.current) videoRef.current.currentTime = streamStart; safePlay(); }}
@@ -303,10 +317,11 @@ export function PlayerPage() {
         {usableSubtitles.map((subtitle) => <track key={`${subtitle.language}-${subtitle.url ?? subtitle.path}`} kind="subtitles" src={subtitle.url ?? subtitle.path} srcLang={subtitle.language} label={subtitle.language.toUpperCase()} />)}
       </video>
 
-      {skipMarker && <Button className="absolute bottom-32 right-8 z-30" onClick={() => seek(skipMarker.end)}>{skipMarker.label}</Button>}
-      {seriesComplete && <div className="player-complete-panel"><p>EPISODE QUEUE</p><h2>Series complete</h2><span>No later playable episode was returned by the server.</span><div><button onClick={replay}>Replay episode</button><button onClick={exitPlayer}>Back</button></div></div>}
+      <AnimatePresence>{buffering && <motion.div className="pointer-events-none absolute inset-0 z-20 grid place-items-center" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: MOTION_TIMINGS.notice }}><motion.i className="h-12 w-12 rounded-full border-2 border-white/20 border-t-white" animate={reduced ? undefined : { rotate: 360 }} transition={{ duration: .8, repeat: Infinity, ease: "linear" }} aria-label="Buffering" /></motion.div>}</AnimatePresence>
+      <AnimatePresence>{skipMarker && <motion.div className="absolute bottom-32 right-8 z-30" initial={reduced ? { opacity: 0 } : { opacity: 0, x: 18 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 12 }} transition={{ duration: MOTION_TIMINGS.notice, ease: MOTION_EASE }}><Button onClick={() => seek(skipMarker.end)}>{skipMarker.label}</Button></motion.div>}</AnimatePresence>
+      <AnimatePresence>{seriesComplete && <motion.div className="player-complete-panel" initial={reduced ? { opacity: 0, x: "-50%", y: "-50%" } : { opacity: 0, x: "-50%", y: "calc(-50% + 18px)", scale: .94 }} animate={{ opacity: 1, x: "-50%", y: "-50%", scale: 1 }} exit={{ opacity: 0, x: "-50%", y: "-50%", scale: .97 }} transition={{ duration: reduced ? MOTION_TIMINGS.reduced : MOTION_TIMINGS.dialogEnter, ease: MOTION_EASE }}><p>EPISODE QUEUE</p><h2>Series complete</h2><span>No later playable episode was returned by the server.</span><div><button onClick={replay}>Replay episode</button><button onClick={exitPlayer}>Back</button></div></motion.div>}</AnimatePresence>
 
-      <div className={`player-controls absolute inset-x-0 bottom-0 bg-gradient-to-t from-black via-black/80 to-transparent px-5 pb-6 pt-24 transition-opacity md:px-10 ${showControls || !isPlaying ? "opacity-100" : "pointer-events-none opacity-0"}`}>
+      <AnimatePresence>{(showControls || !isPlaying) && <motion.div className="player-controls absolute inset-x-0 bottom-0 bg-gradient-to-t from-black via-black/80 to-transparent px-5 pb-6 pt-24 md:px-10" initial={reduced ? { opacity: 0 } : { opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0, transition: { duration: reduced ? MOTION_TIMINGS.reduced : MOTION_TIMINGS.controlsEnter, ease: MOTION_EASE } }} exit={reduced ? { opacity: 0 } : { opacity: 0, y: 12, transition: { duration: MOTION_TIMINGS.controlsExit, ease: MOTION_EASE } }}>
         <div className="mx-auto max-w-7xl">
           <div className="mb-5 flex items-start justify-between gap-5">
             <div><h1 className="text-xl font-semibold md:text-2xl">{asset.title}</h1>{asset.subtitle && <p className="mt-1 text-sm text-white/60">{asset.subtitle}</p>}</div>
@@ -326,7 +341,7 @@ export function PlayerPage() {
             </div>
           </div>
         </div>
-      </div>
-    </div>
+      </motion.div>}</AnimatePresence>
+    </motion.div>
   );
 }

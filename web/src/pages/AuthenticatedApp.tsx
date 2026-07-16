@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo } from "react";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { useLocation } from "react-router-dom";
 import { parseAppQuery } from "../navigation/queryState";
 import { MOTION_EASE, MOTION_TIMINGS, resetApplicationScroll, THEME_MOTION, useAppMotion } from "../motion/motionSystem";
@@ -16,8 +16,19 @@ export function AuthenticatedApp() {
   useEffect(() => {
     if (query.view === "watch" || query.view === "admin") resetApplicationScroll();
   }, [query.view]);
-  const standaloneTransition = { duration: reduced ? MOTION_TIMINGS.reduced : MOTION_TIMINGS.view, ease: MOTION_EASE };
-  if (query.view === "watch") return <motion.div className="standalone-motion-view" variants={reduced ? { initial: { opacity: 0 }, animate: { opacity: 1 } } : THEME_MOTION[theme].view} initial="initial" animate="animate" transition={standaloneTransition}><PlayerPage /></motion.div>;
-  if (query.view === "admin") return <motion.div className="standalone-motion-view" variants={reduced ? { initial: { opacity: 0 }, animate: { opacity: 1 } } : THEME_MOTION[theme].view} initial="initial" animate="animate" transition={standaloneTransition}><AdminGate /></motion.div>;
-  return <DashboardRouter />;
+  const surface = query.view === "watch" ? "watch" : query.view === "admin" ? "admin" : "dashboard";
+  const reducedVariants = { initial: { opacity: 0 }, animate: { opacity: 1, transition: { duration: MOTION_TIMINGS.reduced } }, exit: { opacity: 0, transition: { duration: MOTION_TIMINGS.reduced } } };
+  return <AnimatePresence mode="wait" onExitComplete={resetApplicationScroll}>
+    <motion.div
+      key={surface}
+      className={surface === "dashboard" ? "application-motion-surface" : "standalone-motion-view"}
+      variants={reduced ? reducedVariants : THEME_MOTION[theme].view}
+      custom={surface === "dashboard" ? -1 : 1}
+      initial="initial"
+      animate="animate"
+      exit="exit"
+    >
+      {surface === "watch" ? <PlayerPage /> : surface === "admin" ? <AdminGate /> : <DashboardRouter />}
+    </motion.div>
+  </AnimatePresence>;
 }

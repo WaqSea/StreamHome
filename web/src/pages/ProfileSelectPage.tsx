@@ -49,7 +49,8 @@ function ThemeChoices({ value, onChange }: { value: ThemeId; onChange: (theme: T
 
 function ProfileAmbient({ theme }: { theme: ThemeId }) {
   const Background = theme === "aurora" ? AuroraBackground : theme === "cinema" ? CinemaBackground : theme === "gemini" ? GeminiBackground : EmberBackground;
-  return <AnimatePresence initial={false} mode="sync"><motion.div className="profile-gallery__ambient" data-ambient-theme={theme} key={theme} initial={{ opacity: 0, scale: 1.035, filter: "blur(18px)" }} animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }} exit={{ opacity: 0, scale: .985, filter: "blur(14px)" }} transition={{ duration: MOTION_TIMINGS.profileMorph, ease: MOTION_EASE }}>{theme === "ember" ? <EmberBackground suspendWhenHidden respectReducedMotion /> : <Background />}{theme === "ember" && <ScanLines />}</motion.div></AnimatePresence>;
+  const { reduced } = useAppMotion();
+  return <AnimatePresence initial={false} mode="sync"><motion.div className="profile-gallery__ambient" data-ambient-theme={theme} key={theme} initial={reduced ? { opacity: 0 } : { opacity: 0, scale: 1.035, filter: "blur(18px)" }} animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }} exit={reduced ? { opacity: 0 } : { opacity: 0, scale: .985, filter: "blur(14px)" }} transition={{ duration: reduced ? MOTION_TIMINGS.reduced : MOTION_TIMINGS.profileMorph, ease: MOTION_EASE }}>{theme === "ember" ? <EmberBackground suspendWhenHidden respectReducedMotion /> : <Background />}{theme === "ember" && <ScanLines />}</motion.div></AnimatePresence>;
 }
 
 export function ProfileSelectPage() {

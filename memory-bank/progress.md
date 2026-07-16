@@ -1,5 +1,30 @@
 # Progress Status
 
+## Active comprehensive motion rebuild
+
+- [x] Audited route, component-state, data-mutation, navigation, artwork, details, playback, profile, authentication, and admin transitions across all four themes.
+- [x] Replaced the globally overextended timing scale with semantic interaction, overlay, page, billboard, list, artwork, and player-control timings.
+- [x] Added application-wide Framer Motion reduced-motion configuration, directional page variants, shared content reveal variants, and a reusable animated state boundary.
+- [x] Added a persistent authenticated surface transition boundary so dashboard, player, and admin can complete coordinated exits and entrances.
+- [x] Restored responsive semantic theme timing variables, animated navigation state changes, shortened billboard-copy timing, and removed competing CSS transforms.
+- [x] Split Ember pointer tilt from card lift so hover interactions remain immediate without transform-transition conflicts.
+- [x] Added interruptible, more balanced rail scrolling and server-artwork decode reveals with reduced-motion fallbacks.
+- [x] Added staged catalog collection entry, animated search-result replacement, watchlist empty/populated transitions, and limited full-page transitions to true view changes.
+- [x] Added cinematic details artwork/copy reveals, animated watchlist feedback, and season-aware episode loading, empty, and grid transitions.
+- [x] Added player surface entry, buffering feedback, skip-marker and completion overlays, plus rescheduled asymmetric control reveals and exits.
+- [x] Added reduced-motion-aware profile ambient morphing and animated admin navigation/panel replacement.
+- [x] Added animated password-to-TOTP reauthentication steps and authentication-surface entry.
+- [x] Rebalanced theme ambience: Aurora and Cinema now move perceptibly, Ember particles have visible drift, and Gemini uses frame-rate-independent timing.
+- [x] Brought Ember catalog rails, search results, and watchlist lifecycle states into the shared staged-motion system.
+- [x] Updated motion tests to enforce responsive semantic timings, asymmetric overlays/controls, and direction-resolved per-theme choreography.
+- [x] Added expanding TOTP setup and animated account/storage success-error feedback in the admin panels.
+- [x] Reworked dropdowns, generic modals, profile settings, and glass spotlights around responsive asymmetric overlay timing.
+- [x] Replaced repeated generated-artwork `<img>` 404 retries with a shared cached server-path resolver and reduced-motion-safe loading shimmer.
+- [x] Added artwork resolver tests for wrong-year fallback selection and cross-component request deduplication.
+- [x] Wired theme-specific and local content choreography through catalog, details, player, profiles, authentication, and admin surfaces.
+- [x] Expanded behavior-focused coverage to 39 passing tests; TypeScript lint, production build, diff checks, and unauthenticated browser/console QA pass.
+- [x] The required database checker was attempted and is blocked by the existing local Python environment missing `sqlmodel`; the web-only change does not modify server behavior.
+
 ## Server
 
 - [x] FastAPI, SQLModel/SQLite, FFmpeg, TMDB enrichment, download queue processing, local/cloud storage settings, recovery scanning, and range streaming are implemented.

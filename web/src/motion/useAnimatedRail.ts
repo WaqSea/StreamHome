@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { MOTION_TIMINGS, useAppMotion } from "./motionSystem";
 
-export const cinematicRailEase = (progress: number): number => 1 - Math.pow(1 - Math.min(1, Math.max(0, progress)), 4);
+export const cinematicRailEase = (progress: number): number => 1 - Math.pow(1 - Math.min(1, Math.max(0, progress)), 3);
 
 export function railTarget(element: Pick<HTMLElement, "scrollLeft" | "clientWidth" | "scrollWidth">, direction: -1 | 1): number {
   const distance = Math.min(element.clientWidth * .82, 920);
@@ -61,15 +61,21 @@ export function useAnimatedRail() {
     const element = rail.current;
     if (!element) return;
     element.addEventListener("scroll", updateEdges, { passive: true });
+    element.addEventListener("wheel", stop, { passive: true });
+    element.addEventListener("pointerdown", stop, { passive: true });
+    element.addEventListener("touchstart", stop, { passive: true });
     const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(updateEdges);
     observer?.observe(element);
     updateEdges();
     return () => {
       element.removeEventListener("scroll", updateEdges);
+      element.removeEventListener("wheel", stop);
+      element.removeEventListener("pointerdown", stop);
+      element.removeEventListener("touchstart", stop);
       observer?.disconnect();
       if (frame.current !== null) cancelAnimationFrame(frame.current);
     };
-  }, [updateEdges]);
+  }, [stop, updateEdges]);
 
   return { rail, scroll, direction, canScrollPrevious: edges.previous, canScrollNext: edges.next, stop };
 }

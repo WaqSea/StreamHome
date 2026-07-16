@@ -73,7 +73,7 @@ export function GlassPane({
           style={{
             background: 'var(--spotlight-gradient)',
             opacity: isHovered ? 1 : 0,
-            transition: 'opacity 480ms cubic-bezier(.16, 1, .3, 1)',
+            transition: 'opacity 320ms cubic-bezier(.16, 1, .3, 1)',
             zIndex: 0
           }}
         />

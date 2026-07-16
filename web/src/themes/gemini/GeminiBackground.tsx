@@ -32,6 +32,7 @@ export function GeminiBackground({ suspendWhenHidden = true, respectReducedMotio
     let stars: Star[] = [];
     let glows: GlowParticle[] = [];
     let time = 0;
+    let lastTime = 0;
 
     const resize = () => {
       canvas.width = window.innerWidth;
@@ -50,7 +51,7 @@ export function GeminiBackground({ suspendWhenHidden = true, respectReducedMotio
           y: Math.random() * canvas.height,
           size: Math.random() * 1 + 1, // 1-2px
           baseOpacity: Math.random() * 0.6 + 0.1, // 0.1-0.7
-          speed: Math.random() * 0.006 + 0.0015,
+          speed: Math.random() * 0.28 + 0.08,
           timeOffset: Math.random() * Math.PI * 2
         });
       }
@@ -62,20 +63,22 @@ export function GeminiBackground({ suspendWhenHidden = true, respectReducedMotio
           y: Math.random() * canvas.height,
           size: Math.random() * 200 + 100, // Large blobs
           color: glowColors[i % glowColors.length],
-          speed: Math.random() * 0.003 + 0.001,
+          speed: Math.random() * 0.12 + 0.06,
           timeOffset: Math.random() * Math.PI * 2
         });
       }
     };
 
     const reducedMotion = respectReducedMotion && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const draw = () => {
+    const draw = (now = 0) => {
       if (suspendWhenHidden && document.hidden) {
         animationFrameId = undefined;
         return;
       }
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      time += 1;
+      const delta = lastTime ? Math.min((now - lastTime) / 1000, .05) : 0;
+      lastTime = now;
+      time += delta;
 
       // Draw glows
       glows.forEach(g => {
@@ -113,11 +116,11 @@ export function GeminiBackground({ suspendWhenHidden = true, respectReducedMotio
       if (document.hidden) {
         if (animationFrameId) cancelAnimationFrame(animationFrameId);
         animationFrameId = undefined;
-      } else if (!animationFrameId) animationFrameId = requestAnimationFrame(draw);
+      } else if (!animationFrameId) { lastTime = 0; animationFrameId = requestAnimationFrame(draw); }
     };
     document.addEventListener('visibilitychange', handleVisibility);
     resize();
-    draw();
+    draw(0);
 
     return () => {
       window.removeEventListener('resize', resize);

@@ -57,23 +57,23 @@ export function AuroraBackground() {
 
       <div className="aurora-blob" style={{
         top: '10%', left: '20%', width: '40vw', height: '40vw',
-        background: '#111', animation: 'blob-1 68s infinite ease-in-out', animationPlayState: playState
+        background: '#111', animation: 'blob-1 34s infinite ease-in-out', animationPlayState: playState
       }} />
       <div className="aurora-blob" style={{
         top: '40%', right: '10%', width: '35vw', height: '35vw',
-        background: '#222', animation: 'blob-2 76s infinite ease-in-out', animationPlayState: playState
+        background: '#222', animation: 'blob-2 42s infinite ease-in-out', animationPlayState: playState
       }} />
       <div className="aurora-blob" style={{
         bottom: '10%', left: '30%', width: '45vw', height: '45vw',
-        background: '#333', animation: 'blob-3 72s infinite ease-in-out', animationPlayState: playState
+        background: '#333', animation: 'blob-3 38s infinite ease-in-out', animationPlayState: playState
       }} />
       <div className="aurora-blob" style={{
         top: '20%', right: '30%', width: '30vw', height: '30vw',
-        background: '#1a1a1a', animation: 'blob-4 64s infinite ease-in-out', animationPlayState: playState
+        background: '#1a1a1a', animation: 'blob-4 32s infinite ease-in-out', animationPlayState: playState
       }} />
       <div className="aurora-blob" style={{
         bottom: '20%', right: '20%', width: '38vw', height: '38vw',
-        background: '#0f0f0f', animation: 'blob-5 70s infinite ease-in-out', animationPlayState: playState
+        background: '#0f0f0f', animation: 'blob-5 40s infinite ease-in-out', animationPlayState: playState
       }} />
     </div>
   );
