@@ -3,13 +3,17 @@ import { AnimatePresence, motion, type Variants } from "framer-motion";
 import type { ThemeId } from "../types/theme";
 
 export const MOTION_TIMINGS = {
-  hover: 0.48,
-  menu: 0.65,
-  dialog: 0.76,
-  view: 1.05,
-  rail: 950,
-  billboard: 1.5,
-  profileMorph: 1.4,
+  hover: 0.8,
+  menu: 1.2,
+  menuItem: 0.72,
+  dialog: 1.35,
+  viewExit: 0.8,
+  viewEnter: 1.2,
+  view: 2,
+  rail: 1500,
+  billboard: 2.3,
+  profileMorph: 2.2,
+  profileEntry: 1.3,
   reduced: 0.18,
 } as const;
 
@@ -23,8 +27,15 @@ export interface ThemeMotionDefinition {
 
 const viewVariants = (initial: Record<string, string | number>, exit: Record<string, string | number>): Variants => ({
   initial,
-  animate: { opacity: 1, x: 0, y: 0, scale: 1, filter: "blur(0px)" },
-  exit,
+  animate: {
+    opacity: 1,
+    x: 0,
+    y: 0,
+    scale: 1,
+    filter: "blur(0px)",
+    transition: { duration: MOTION_TIMINGS.viewEnter, ease: MOTION_EASE },
+  },
+  exit: { ...exit, transition: { duration: MOTION_TIMINGS.viewExit, ease: MOTION_EASE } },
 });
 
 const billboardVariants = (initial: Record<string, string | number>, exit: Record<string, string | number>): Variants => ({
@@ -99,8 +110,8 @@ export function AnimatedView({ theme, viewKey, children }: { theme: ThemeId; vie
   const definition = THEME_MOTION[theme];
   const reducedVariants: Variants = {
     initial: { opacity: 0 },
-    animate: { opacity: 1 },
-    exit: { opacity: 0 },
+    animate: { opacity: 1, transition: { duration: MOTION_TIMINGS.reduced, ease: MOTION_EASE } },
+    exit: { opacity: 0, transition: { duration: MOTION_TIMINGS.reduced, ease: MOTION_EASE } },
   };
   return <AnimatePresence mode="wait" initial={false} onExitComplete={resetApplicationScroll}>
     <motion.div
@@ -110,7 +121,6 @@ export function AnimatedView({ theme, viewKey, children }: { theme: ThemeId; vie
       initial="initial"
       animate="animate"
       exit="exit"
-      transition={{ duration: reduced ? MOTION_TIMINGS.reduced : MOTION_TIMINGS.view / 2, ease: MOTION_EASE }}
     >{children}</motion.div>
   </AnimatePresence>;
 }

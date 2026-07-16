@@ -19,13 +19,19 @@ function matchMedia(matches: boolean) {
 describe("cinematic motion system", () => {
   beforeEach(() => Object.defineProperty(window, "matchMedia", { configurable: true, value: () => matchMedia(false) }));
 
-  it("keeps the approved slow timing scale", () => {
-    expect(MOTION_TIMINGS.hover).toBe(.48);
-    expect(MOTION_TIMINGS.menu).toBe(.65);
-    expect(MOTION_TIMINGS.view).toBe(1.05);
-    expect(MOTION_TIMINGS.rail).toBe(950);
-    expect(MOTION_TIMINGS.billboard).toBe(1.5);
-    expect(MOTION_TIMINGS.profileMorph).toBe(1.4);
+  it("keeps the extended cinematic timing scale", () => {
+    expect(MOTION_TIMINGS.hover).toBe(.8);
+    expect(MOTION_TIMINGS.menu).toBe(1.2);
+    expect(MOTION_TIMINGS.menuItem).toBe(.72);
+    expect(MOTION_TIMINGS.dialog).toBe(1.35);
+    expect(MOTION_TIMINGS.viewExit).toBe(.8);
+    expect(MOTION_TIMINGS.viewEnter).toBe(1.2);
+    expect(MOTION_TIMINGS.view).toBe(2);
+    expect(MOTION_TIMINGS.viewExit + MOTION_TIMINGS.viewEnter).toBe(MOTION_TIMINGS.view);
+    expect(MOTION_TIMINGS.rail).toBe(1500);
+    expect(MOTION_TIMINGS.billboard).toBe(2.3);
+    expect(MOTION_TIMINGS.profileMorph).toBe(2.2);
+    expect(MOTION_TIMINGS.profileEntry).toBe(1.3);
     expect(MOTION_TIMINGS.reduced).toBeGreaterThanOrEqual(.16);
   });
 

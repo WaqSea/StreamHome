@@ -50,7 +50,7 @@ export function GeminiBackground({ suspendWhenHidden = true, respectReducedMotio
           y: Math.random() * canvas.height,
           size: Math.random() * 1 + 1, // 1-2px
           baseOpacity: Math.random() * 0.6 + 0.1, // 0.1-0.7
-          speed: Math.random() * 0.02 + 0.005,
+          speed: Math.random() * 0.006 + 0.0015,
           timeOffset: Math.random() * Math.PI * 2
         });
       }
@@ -62,7 +62,7 @@ export function GeminiBackground({ suspendWhenHidden = true, respectReducedMotio
           y: Math.random() * canvas.height,
           size: Math.random() * 200 + 100, // Large blobs
           color: glowColors[i % glowColors.length],
-          speed: Math.random() * 0.01 + 0.005,
+          speed: Math.random() * 0.003 + 0.001,
           timeOffset: Math.random() * Math.PI * 2
         });
       }

@@ -63,20 +63,23 @@ The server was deliberately not changed during the current web repair. Existing 
 - [x] Added a central normal/reduced-motion and document-visibility provider; reduced mode now uses minimal fades instead of collapsing every transition to `0.01ms`.
 - [x] Added profile hover intent, full ambient theme morphing, staggered profile entry, animated profile selection, and animated create/edit/delete dialogs.
 - [x] Added animated profile menus and preserved the explicit Edit Profile, Switch Profile, and Sign Out behavior.
-- [x] Made Ember particles time-based at 6–14 pixels per second and repaired hidden-document suspension in Ember and Gemini; Aurora and Cinema now use slower visibility-aware ambience.
-- [x] Added coordinated query-view exits, scroll reset, and theme-specific entries without remounting shared catalog controllers or changing query URLs.
-- [x] Added direction-aware, overlapping 1.5-second billboard transitions with staged copy for all themes.
-- [x] Replaced native smooth rail scrolling with a cancelable, edge-clamped 950ms controller and direction feedback.
+- [x] Made Ember particles time-based at 3–7 pixels per second and repaired hidden-document suspension in Ember and Gemini; Aurora, Cinema, and Gemini now use substantially slower visibility-aware ambience.
+- [x] Added coordinated query-view exits, scroll reset, and theme-specific entries without remounting shared catalog controllers or changing query URLs. The sequence now lasts two seconds: 800ms out and 1200ms in.
+- [x] Added direction-aware, overlapping 2.3-second billboard transitions with slower staged copy for all themes.
+- [x] Replaced native smooth rail scrolling with a cancelable, edge-clamped 1500ms controller and direction feedback.
 - [x] Replaced authenticated button hover color swaps with slow scale/lift/shadow feedback and retained semantic active/focus/disabled colors.
 - [x] Slowed player controls, shared modals, dropdowns, Gemini navigation collapse, and glass hover feedback.
 - [x] Added deterministic tests for motion timings, theme completeness, normal/reduced preferences, billboard rotation/direction/pause, rail easing/clamping, and button hover contracts.
+- [x] Corrected profile-menu placement so Gemini desktop opens upward from its bottom sidebar while mobile Gemini and top navigation open downward; menus are viewport-bounded and internally scroll when necessary.
+- [x] Slowed hover, menu, dialog, profile handoff, theme morph, ambient, player, and navigation-collapse animation across all four themes.
+- [x] Added component coverage for desktop and mobile profile-menu placement and expanded timing assertions for the two-stage page transition.
 - [x] Live browser QA confirmed no horizontal overflow at 1280px, 820px, and 390px login layouts, a stable reduced-motion frame, and no console warnings.
 - [ ] Authenticated four-theme live animation QA requires a runnable local FastAPI environment; both available Python runtimes currently fail before startup because `sqlmodel` is missing.
 
 ## Validation
 
 - [x] `npm run lint`
-- [x] `npm test` (16 files, 34 tests)
+- [x] `npm test` (16 files, 36 tests)
 - [x] `npm run build`
 - [x] Live browser validation of Ember, Aurora, Cinema, and Gemini billboards, genre rails, My List, profile settings menu/dialog, server artwork, query navigation, root/document scroll restoration, desktop/mobile overflow, and console output.
 - [x] Live browser validation against the local server: Ember desktop/mobile home, movies, details, series-empty, downloads-empty, profile gallery/settings, safe create/delete, query navigation, and scroll restoration.
