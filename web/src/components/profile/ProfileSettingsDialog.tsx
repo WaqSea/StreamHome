@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from "react";
+import { motion } from "framer-motion";
 import { deleteProfile, saveProfile } from "../../api/profiles";
 import { useProfileStore } from "../../stores/profileStore";
 import { useThemeStore } from "../../stores/themeStore";
 import type { Profile } from "../../types/api";
 import type { ThemeId } from "../../types/theme";
 import { normalizeTheme } from "../../utils/media";
+import { MOTION_EASE, MOTION_TIMINGS, useAppMotion } from "../../motion/motionSystem";
 
 const THEMES: ThemeId[] = ["ember", "aurora", "cinema", "gemini"];
 const THEME_LABELS: Record<ThemeId, string> = { ember: "Ember", aurora: "Aurora", cinema: "Cinema", gemini: "Gemini" };
@@ -18,6 +20,7 @@ export function ProfileSettingsDialog({ profile, onClose, onDeleted }: { profile
   const removeProfile = useProfileStore((state) => state.removeProfile);
   const setTheme = useThemeStore((state) => state.setTheme);
   const activeTheme = useThemeStore((state) => state.activeTheme);
+  const { reduced } = useAppMotion();
   const [name, setName] = useState(profile.name);
   const [theme, setSelectedTheme] = useState<ThemeId>(normalizeTheme(profile.theme));
   const [confirmation, setConfirmation] = useState("");
@@ -60,5 +63,6 @@ export function ProfileSettingsDialog({ profile, onClose, onDeleted }: { profile
     } finally { setDeleting(false); }
   };
 
-  return <div className="profile-dialog app-profile-dialog" data-theme={activeTheme} role="dialog" aria-modal="true" aria-label={`Edit ${profile.name}`} onMouseDown={(event) => { if (event.target === event.currentTarget && !saving && !deleting) onClose(); }}><form className="profile-dialog__panel profile-dialog__panel--edit" onSubmit={submit}><p>PROFILE SETTINGS</p><h2>Edit profile</h2><label><span>Name</span><input value={name} onChange={(event) => setName(event.target.value)} minLength={1} maxLength={40} required autoFocus /></label><ThemeChoices value={theme} onChange={setSelectedTheme} />{error && <p className="profile-dialog__error" role="alert">{error}</p>}<div className="profile-dialog__actions"><button type="submit" disabled={saving || deleting}>{saving ? "Saving..." : "Save changes"}</button><button type="button" onClick={onClose} disabled={saving || deleting}>Cancel</button></div>{profile.id === "1" ? <p className="profile-delete-note">The administrator profile cannot be deleted.</p> : <section className="profile-delete-zone"><h3>Delete profile</h3><p>Type <strong>{profile.name}</strong> to permanently delete this profile.</p><input aria-label="Confirm profile name" value={confirmation} onChange={(event) => setConfirmation(event.target.value)} /><button type="button" disabled={deleting || saving || confirmation !== profile.name} onClick={() => void remove()}>{deleting ? "Deleting..." : "Delete profile"}</button></section>}</form></div>;
+  const transition = { duration: reduced ? MOTION_TIMINGS.reduced : MOTION_TIMINGS.dialog, ease: MOTION_EASE };
+  return <motion.div className="profile-dialog app-profile-dialog" data-theme={activeTheme} role="dialog" aria-modal="true" aria-label={`Edit ${profile.name}`} initial={{ opacity: 0, backdropFilter: "blur(0px)" }} animate={{ opacity: 1, backdropFilter: "blur(20px)" }} exit={{ opacity: 0, backdropFilter: "blur(0px)" }} transition={transition} onMouseDown={(event) => { if (event.target === event.currentTarget && !saving && !deleting) onClose(); }}><motion.form className="profile-dialog__panel profile-dialog__panel--edit" onSubmit={submit} initial={{ opacity: 0, y: 28, scale: .94 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 18, scale: .97 }} transition={transition}><p>PROFILE SETTINGS</p><h2>Edit profile</h2><label><span>Name</span><input value={name} onChange={(event) => setName(event.target.value)} minLength={1} maxLength={40} required autoFocus /></label><ThemeChoices value={theme} onChange={setSelectedTheme} />{error && <p className="profile-dialog__error" role="alert">{error}</p>}<div className="profile-dialog__actions"><button type="submit" disabled={saving || deleting}>{saving ? "Saving..." : "Save changes"}</button><button type="button" onClick={onClose} disabled={saving || deleting}>Cancel</button></div>{profile.id === "1" ? <p className="profile-delete-note">The administrator profile cannot be deleted.</p> : <section className="profile-delete-zone"><h3>Delete profile</h3><p>Type <strong>{profile.name}</strong> to permanently delete this profile.</p><input aria-label="Confirm profile name" value={confirmation} onChange={(event) => setConfirmation(event.target.value)} /><button type="button" disabled={deleting || saving || confirmation !== profile.name} onClick={() => void remove()}>{deleting ? "Deleting..." : "Delete profile"}</button></section>}</motion.form></motion.div>;
 }

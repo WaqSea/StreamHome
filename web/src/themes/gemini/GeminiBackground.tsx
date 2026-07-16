@@ -28,7 +28,7 @@ export function GeminiBackground({ suspendWhenHidden = true, respectReducedMotio
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    let animationFrameId: number;
+    let animationFrameId: number | undefined;
     let stars: Star[] = [];
     let glows: GlowParticle[] = [];
     let time = 0;
@@ -71,7 +71,7 @@ export function GeminiBackground({ suspendWhenHidden = true, respectReducedMotio
     const reducedMotion = respectReducedMotion && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const draw = () => {
       if (suspendWhenHidden && document.hidden) {
-        animationFrameId = requestAnimationFrame(draw);
+        animationFrameId = undefined;
         return;
       }
       ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -108,11 +108,20 @@ export function GeminiBackground({ suspendWhenHidden = true, respectReducedMotio
     };
 
     window.addEventListener('resize', resize);
+    const handleVisibility = () => {
+      if (!suspendWhenHidden || reducedMotion) return;
+      if (document.hidden) {
+        if (animationFrameId) cancelAnimationFrame(animationFrameId);
+        animationFrameId = undefined;
+      } else if (!animationFrameId) animationFrameId = requestAnimationFrame(draw);
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
     resize();
     draw();
 
     return () => {
       window.removeEventListener('resize', resize);
+      document.removeEventListener('visibilitychange', handleVisibility);
       if (animationFrameId) cancelAnimationFrame(animationFrameId);
     };
   }, [respectReducedMotion, suspendWhenHidden]);

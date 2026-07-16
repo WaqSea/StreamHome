@@ -62,7 +62,7 @@ export function GlassPane({
       {...props}
     >
       {/* Gemini Gradient Border (Pseudo-element equivalent handled via absolute inset div) */}
-      <div className="absolute inset-0 rounded-[var(--radius)] pointer-events-none transition-opacity duration-300 opacity-0 group-hover:opacity-100" style={{
+      <div className="absolute inset-0 rounded-[var(--radius)] pointer-events-none transition-opacity duration-[480ms] opacity-0 group-hover:opacity-100" style={{
          boxShadow: 'inset 0 0 0 1px var(--glass-border-hover)'
       }} />
 
@@ -73,7 +73,7 @@ export function GlassPane({
           style={{
             background: 'var(--spotlight-gradient)',
             opacity: isHovered ? 1 : 0,
-            transition: 'opacity 300ms ease',
+            transition: 'opacity 480ms cubic-bezier(.16, 1, .3, 1)',
             zIndex: 0
           }}
         />

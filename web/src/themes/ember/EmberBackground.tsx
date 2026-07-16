@@ -6,6 +6,7 @@ interface Particle {
   size: number;
   opacity: number;
   speed: number;
+  drift: number;
 }
 
 export function EmberBackground({ suspendWhenHidden = false, respectReducedMotion = false }: { suspendWhenHidden?: boolean; respectReducedMotion?: boolean } = {}) {
@@ -19,6 +20,7 @@ export function EmberBackground({ suspendWhenHidden = false, respectReducedMotio
     if (!ctx) return;
 
     let animationFrameId: number | undefined;
+    let lastTime = 0;
     let particles: Particle[] = [];
 
     const resize = () => {
@@ -36,14 +38,20 @@ export function EmberBackground({ suspendWhenHidden = false, respectReducedMotio
           y: Math.random() * canvas.height,
           size: Math.random() * 2 + 1, // 1-3px
           opacity: Math.random() * 0.6 + 0.3, // 0.3-0.9
-          speed: Math.random() * 0.5 + 0.3 // 0.3-0.8 px/frame
+          speed: Math.random() * 8 + 6,
+          drift: (Math.random() - .5) * 1.4,
         });
       }
     };
 
     const reducedMotion = respectReducedMotion && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const draw = () => {
-      if (suspendWhenHidden && document.hidden) return;
+    const draw = (now = 0) => {
+      if (suspendWhenHidden && document.hidden) {
+        animationFrameId = undefined;
+        return;
+      }
+      const delta = lastTime ? Math.min((now - lastTime) / 1000, .05) : 0;
+      lastTime = now;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
       particles.forEach(p => {
@@ -52,7 +60,8 @@ export function EmberBackground({ suspendWhenHidden = false, respectReducedMotio
         ctx.fillStyle = `rgba(255, 95, 31, ${p.opacity})`;
         ctx.fill();
 
-        p.y -= p.speed;
+        p.y -= p.speed * delta;
+        p.x += p.drift * delta;
 
         if (p.y < 0) {
           p.y = canvas.height;
@@ -69,6 +78,7 @@ export function EmberBackground({ suspendWhenHidden = false, respectReducedMotio
         if (animationFrameId) cancelAnimationFrame(animationFrameId);
         animationFrameId = undefined;
       } else if (!animationFrameId) {
+        lastTime = 0;
         animationFrameId = requestAnimationFrame(draw);
       }
     };
@@ -76,7 +86,7 @@ export function EmberBackground({ suspendWhenHidden = false, respectReducedMotio
     window.addEventListener('resize', resize);
     document.addEventListener('visibilitychange', handleVisibility);
     resize();
-    draw();
+    draw(0);
 
     return () => {
       window.removeEventListener('resize', resize);

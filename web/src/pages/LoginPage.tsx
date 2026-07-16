@@ -1,20 +1,24 @@
-import React, { useState, useRef } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import { login, verify2FA } from '../api/auth';
 import { EmberBackground } from '../themes/ember/EmberBackground';
 import { ScanLines } from '../themes/ember/ScanLines';
+import { MOTION_EASE, MOTION_TIMINGS, useAppMotion } from '../motion/motionSystem';
 
 export function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const setToken = useAuthStore((state) => state.setToken);
+  const { reduced } = useAppMotion();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isLeaving, setIsLeaving] = useState(false);
+  const navigationTimer = useRef<number | null>(null);
 
   const [requires2FA, setRequires2FA] = useState(false);
   const [totpCode, setTotpCode] = useState<string[]>(Array(6).fill(''));
@@ -24,6 +28,16 @@ export function LoginPage() {
   const [isHovered, setIsHovered] = useState(false);
   const spotlightRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => () => {
+    if (navigationTimer.current !== null) window.clearTimeout(navigationTimer.current);
+  }, []);
+
+  const completeLogin = (accessToken: string, accountEmail: string) => {
+    setToken(accessToken, accountEmail);
+    setIsLeaving(true);
+    navigationTimer.current = window.setTimeout(() => navigate('/profiles', { state: location.state }), reduced ? 180 : 680);
+  };
 
   const handleMouseMove = (e: React.MouseEvent<HTMLElement>) => {
     if (spotlightRef.current && containerRef.current) {
@@ -46,8 +60,7 @@ export function LoginPage() {
       if ("requires2fa" in res) {
         setRequires2FA(true);
       } else {
-        setToken(res.accessToken, res.email);
-        navigate('/profiles', { state: location.state });
+        completeLogin(res.accessToken, res.email);
       }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Login failed');
@@ -75,8 +88,7 @@ export function LoginPage() {
       try {
         const code = newCode.join('');
         const res = await verify2FA({ email, code });
-        setToken(res.accessToken, res.email);
-        navigate('/profiles', { state: location.state });
+        completeLogin(res.accessToken, res.email);
       } catch (err: unknown) {
         setError(err instanceof Error ? err.message : 'Invalid 2FA code');
         setTotpCode(Array(6).fill(''));
@@ -94,15 +106,15 @@ export function LoginPage() {
   };
 
   return (
-    <div className="relative w-full min-h-screen flex flex-col items-center justify-center overflow-hidden bg-[var(--bg-body)]" data-theme="ember">
-      <EmberBackground />
+    <motion.div className="login-page relative w-full min-h-screen flex flex-col items-center justify-center overflow-hidden bg-[var(--bg-body)]" data-theme="ember" animate={isLeaving ? { opacity: 0, scale: 1.025, filter: 'blur(10px)' } : { opacity: 1, scale: 1, filter: 'blur(0px)' }} transition={{ duration: reduced ? MOTION_TIMINGS.reduced : .68, ease: MOTION_EASE }}>
+      <EmberBackground suspendWhenHidden respectReducedMotion />
       <ScanLines />
 
       <motion.div
-        initial={{ opacity: 0, y: 30 }}
-        animate={error ? { x: [-10, 10, -10, 10, 0], opacity: 1, y: 0 } : { opacity: 1, y: 0, x: 0 }}
-        transition={error ? { duration: 0.4 } : { duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-        className="relative z-10 w-full max-w-[500px] mx-4"
+        initial={reduced ? { opacity: 0 } : { opacity: 0, y: 30 }}
+        animate={error && !reduced ? { x: [-10, 10, -10, 10, 0], opacity: 1, y: 0 } : { opacity: 1, y: 0, x: 0 }}
+        transition={error && !reduced ? { duration: 0.4 } : { duration: reduced ? MOTION_TIMINGS.reduced : 0.8, ease: [0.16, 1, 0.3, 1] }}
+        className="relative z-10 w-[calc(100%-32px)] max-w-[500px] mx-auto"
       >
         {/* HERO SECTION - Extracted outside the box! */}
         <section className="mb-8 flex flex-col items-start gap-4">
@@ -146,8 +158,8 @@ export function LoginPage() {
               {!requires2FA ? (
                 <motion.form
                   key="login-form"
-                  exit={{ opacity: 0, x: -30 }}
-                  transition={{ duration: 0.3 }}
+                  exit={reduced ? { opacity: 0 } : { opacity: 0, x: -30 }}
+                  transition={{ duration: reduced ? MOTION_TIMINGS.reduced : 0.3 }}
                   onSubmit={handleLoginSubmit}
                   className="flex flex-col gap-8"
                 >
@@ -189,7 +201,7 @@ export function LoginPage() {
                   
                   {error && (
                     <motion.div 
-                      initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }}
+                      initial={reduced ? { opacity: 0 } : { opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }}
                       className="inline-flex items-center gap-2 border border-[#ffb4ab] rounded-sm text-[#ffb4ab] font-[family-name:var(--font-mono)] text-[12px] tracking-[0.1em]"
                       style={{ padding: '4px 12px' }}
                     >
@@ -213,9 +225,9 @@ export function LoginPage() {
               ) : (
                 <motion.div
                   key="totp-form"
-                  initial={{ opacity: 0, x: 30 }}
+                  initial={reduced ? { opacity: 0 } : { opacity: 0, x: 30 }}
                   animate={{ opacity: 1, x: 0 }}
-                  transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+                  transition={{ duration: reduced ? MOTION_TIMINGS.reduced : 0.4, ease: [0.16, 1, 0.3, 1] }}
                   className="flex flex-col items-center justify-center gap-10 py-6"
                 >
                   <div className="text-center space-y-2">
@@ -262,6 +274,6 @@ export function LoginPage() {
           </div>
         </div>
       </motion.div>
-    </div>
+    </motion.div>
   );
 }

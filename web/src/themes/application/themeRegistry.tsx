@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import { ProfileSettingsDialog } from "../../components/profile/ProfileSettingsDialog";
 import type { AppView } from "../../navigation/queryState";
 import { EmberDashboard } from "../../pages/dashboard/ember/EmberDashboard";
@@ -11,6 +12,7 @@ import { EmberBackground } from "../ember/EmberBackground";
 import { ScanLines } from "../ember/ScanLines";
 import { GeminiBackground } from "../gemini/GeminiBackground";
 import type { ThemeApplicationProps, ThemeNavigationProps, ThemePresentation } from "./contracts";
+import { MOTION_EASE, MOTION_TIMINGS, THEME_MOTION } from "../../motion/motionSystem";
 export type { ThemeNavigationProps } from "./contracts";
 
 const NAV_ITEMS: Array<{ view: AppView; label: string }> = [
@@ -41,7 +43,7 @@ function ProfileControl({ profile, onProfiles, onLogout }: Pick<ThemeNavigationP
     return () => { document.removeEventListener("pointerdown", close); document.removeEventListener("keydown", escape); };
   }, [open]);
 
-  return <div ref={root} className="theme-profile-menu"><button className="theme-profile-control" onClick={() => setOpen((value) => !value)} aria-haspopup="menu" aria-expanded={open} aria-label={`Open settings for ${profile.name}`}><span style={{ background: avatarBackground(profile) }} /><b>{profile.name}</b><i aria-hidden="true">⌄</i></button>{open && <div className="theme-profile-menu__panel" role="menu"><strong>{profile.name}</strong><small>{profile.id === "1" ? "Administrator" : "Profile"}</small><button role="menuitem" onClick={() => { setOpen(false); setEditing(true); }}>Edit profile</button><button role="menuitem" onClick={onProfiles}>Switch profile</button><button role="menuitem" onClick={onLogout}>Sign out</button></div>}{editing && <ProfileSettingsDialog profile={profile} onClose={() => setEditing(false)} onDeleted={onProfiles} />}</div>;
+  return <div ref={root} className="theme-profile-menu"><button className="theme-profile-control" onClick={() => setOpen((value) => !value)} aria-haspopup="menu" aria-expanded={open} aria-label={`Open settings for ${profile.name}`}><span style={{ background: avatarBackground(profile) }} /><b>{profile.name}</b><i aria-hidden="true">⌄</i></button><AnimatePresence>{open && <motion.div key="profile-menu" className="theme-profile-menu__panel" role="menu" initial={{ opacity: 0, y: -12, scale: .94, filter: "blur(10px)" }} animate={{ opacity: 1, y: 0, scale: 1, filter: "blur(0px)" }} exit={{ opacity: 0, y: -8, scale: .97, filter: "blur(7px)" }} transition={{ duration: MOTION_TIMINGS.menu, ease: MOTION_EASE }}><strong>{profile.name}</strong><small>{profile.id === "1" ? "Administrator" : "Profile"}</small><motion.button role="menuitem" initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: .12, duration: .42, ease: MOTION_EASE }} onClick={() => { setOpen(false); setEditing(true); }}>Edit profile</motion.button><motion.button role="menuitem" initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: .2, duration: .42, ease: MOTION_EASE }} onClick={onProfiles}>Switch profile</motion.button><motion.button role="menuitem" initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: .28, duration: .42, ease: MOTION_EASE }} onClick={onLogout}>Sign out</motion.button></motion.div>}{editing && <ProfileSettingsDialog key="profile-settings" profile={profile} onClose={() => setEditing(false)} onDeleted={onProfiles} />}</AnimatePresence></div>;
 }
 
 function MobileCatalogNav({ activeView, onView, isAdmin }: Pick<ThemeNavigationProps, "activeView" | "onView" | "isAdmin">) {
@@ -72,10 +74,10 @@ function EmberBackdrop() { return <><EmberBackground suspendWhenHidden respectRe
 export interface ThemeDefinition extends ThemePresentation { Application: React.ComponentType<ThemeApplicationProps>; }
 
 export const THEME_DEFINITIONS: Record<ThemeId, ThemeDefinition> = {
-  ember: { id: "ember", label: "Ember", Application: EmberDashboard, Background: EmberBackdrop, Navigation: EmberNavigation, shellClass: "theme-app--ember", heroVariant: "terminal", browseVariant: "technical", cardVariant: "sharp", detailsVariant: "terminal", playerVariant: "terminal" },
-  aurora: { id: "aurora", label: "Aurora", Application: LegacyThemeAdapter, Background: AuroraBackground, Navigation: AuroraNavigation, shellClass: "theme-app--aurora", heroVariant: "editorial", browseVariant: "masonry", cardVariant: "glass", detailsVariant: "editorial", playerVariant: "minimal" },
-  cinema: { id: "cinema", label: "Cinema", Application: LegacyThemeAdapter, Background: CinemaBackground, Navigation: CinemaNavigation, shellClass: "theme-app--cinema", heroVariant: "cinematic", browseVariant: "rails", cardVariant: "poster", detailsVariant: "cinematic", playerVariant: "cinematic" },
-  gemini: { id: "gemini", label: "Gemini", Application: LegacyThemeAdapter, Background: GeminiBackground, Navigation: GeminiNavigation, shellClass: "theme-app--gemini", heroVariant: "workspace", browseVariant: "modules", cardVariant: "module", detailsVariant: "workspace", playerVariant: "workspace" },
+  ember: { id: "ember", label: "Ember", Application: EmberDashboard, Background: EmberBackdrop, Navigation: EmberNavigation, shellClass: "theme-app--ember", heroVariant: "terminal", browseVariant: "technical", cardVariant: "sharp", detailsVariant: "terminal", playerVariant: "terminal", motion: THEME_MOTION.ember },
+  aurora: { id: "aurora", label: "Aurora", Application: LegacyThemeAdapter, Background: AuroraBackground, Navigation: AuroraNavigation, shellClass: "theme-app--aurora", heroVariant: "editorial", browseVariant: "masonry", cardVariant: "glass", detailsVariant: "editorial", playerVariant: "minimal", motion: THEME_MOTION.aurora },
+  cinema: { id: "cinema", label: "Cinema", Application: LegacyThemeAdapter, Background: CinemaBackground, Navigation: CinemaNavigation, shellClass: "theme-app--cinema", heroVariant: "cinematic", browseVariant: "rails", cardVariant: "poster", detailsVariant: "cinematic", playerVariant: "cinematic", motion: THEME_MOTION.cinema },
+  gemini: { id: "gemini", label: "Gemini", Application: LegacyThemeAdapter, Background: GeminiBackground, Navigation: GeminiNavigation, shellClass: "theme-app--gemini", heroVariant: "workspace", browseVariant: "modules", cardVariant: "module", detailsVariant: "workspace", playerVariant: "workspace", motion: THEME_MOTION.gemini },
 };
 
 export function getThemeDefinition(id: ThemeId): ThemeDefinition { return THEME_DEFINITIONS[id] ?? THEME_DEFINITIONS.ember; }

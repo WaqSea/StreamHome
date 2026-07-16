@@ -1,4 +1,8 @@
+import { useAppMotion } from '../../motion/motionSystem';
+
 export function AuroraBackground() {
+  const { reduced, documentHidden } = useAppMotion();
+  const playState = reduced || documentHidden ? 'paused' : 'running';
   return (
     <div
       style={{
@@ -53,23 +57,23 @@ export function AuroraBackground() {
 
       <div className="aurora-blob" style={{
         top: '10%', left: '20%', width: '40vw', height: '40vw',
-        background: '#111', animation: 'blob-1 25s infinite ease-in-out'
+        background: '#111', animation: 'blob-1 42s infinite ease-in-out', animationPlayState: playState
       }} />
       <div className="aurora-blob" style={{
         top: '40%', right: '10%', width: '35vw', height: '35vw',
-        background: '#222', animation: 'blob-2 30s infinite ease-in-out'
+        background: '#222', animation: 'blob-2 48s infinite ease-in-out', animationPlayState: playState
       }} />
       <div className="aurora-blob" style={{
         bottom: '10%', left: '30%', width: '45vw', height: '45vw',
-        background: '#333', animation: 'blob-3 28s infinite ease-in-out'
+        background: '#333', animation: 'blob-3 46s infinite ease-in-out', animationPlayState: playState
       }} />
       <div className="aurora-blob" style={{
         top: '20%', right: '30%', width: '30vw', height: '30vw',
-        background: '#1a1a1a', animation: 'blob-4 22s infinite ease-in-out'
+        background: '#1a1a1a', animation: 'blob-4 38s infinite ease-in-out', animationPlayState: playState
       }} />
       <div className="aurora-blob" style={{
         bottom: '20%', right: '20%', width: '38vw', height: '38vw',
-        background: '#0f0f0f', animation: 'blob-5 26s infinite ease-in-out'
+        background: '#0f0f0f', animation: 'blob-5 44s infinite ease-in-out', animationPlayState: playState
       }} />
     </div>
   );

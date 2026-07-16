@@ -3,6 +3,7 @@ import type { AppQueryState, AppView } from "../../navigation/queryState";
 import type { CatalogController } from "../../pages/dashboard/useCatalogController";
 import type { Profile } from "../../types/api";
 import type { ThemeId } from "../../types/theme";
+import type { ThemeMotionDefinition } from "../../motion/motionSystem";
 
 export interface ThemeNavigationProps {
   profile: Profile;
@@ -27,6 +28,7 @@ export interface ThemePresentation {
   cardVariant: "sharp" | "glass" | "poster" | "module";
   detailsVariant: "terminal" | "editorial" | "cinematic" | "workspace";
   playerVariant: "terminal" | "minimal" | "cinematic" | "workspace";
+  motion: ThemeMotionDefinition;
 }
 
 export interface ThemeApplicationProps {

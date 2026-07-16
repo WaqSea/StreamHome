@@ -15,7 +15,7 @@ export function Button({
   ...props
 }: ButtonProps) {
   
-  const baseClasses = "inline-flex items-center justify-center font-[family-name:var(--font-mono)] uppercase tracking-[0.1em] transition-all cursor-pointer select-none rounded-[var(--radius)] disabled:opacity-50 disabled:cursor-not-allowed";
+  const baseClasses = "inline-flex items-center justify-center font-[family-name:var(--font-mono)] uppercase tracking-[0.1em] transition-[transform,box-shadow,opacity] duration-[480ms] ease-[cubic-bezier(.16,1,.3,1)] hover:-translate-y-0.5 hover:scale-[1.04] active:translate-y-0 active:scale-[.98] cursor-pointer select-none rounded-[var(--radius)] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:transform-none";
   
   const sizeClasses = {
     sm: "px-3 py-1.5 text-xs",
@@ -24,9 +24,9 @@ export function Button({
   };
   
   const variantClasses = {
-    primary: "bg-[var(--glass-fill)] border border-[var(--glass-border-hover)] text-[var(--text-accent)] hover:bg-[var(--accent-container)] hover:text-[var(--accent-on-primary)] hover:shadow-[var(--glow-intense)] duration-[var(--duration-fast)] ease-[var(--easing-smooth)]",
-    secondary: "bg-transparent border border-[var(--glass-border)] text-white hover:border-[var(--glass-border-hover)] duration-[var(--duration-fast)] ease-[var(--easing-smooth)]",
-    ghost: "bg-transparent text-[var(--text-secondary)] hover:text-white hover:bg-[var(--glass-fill)] border border-transparent duration-[var(--duration-fast)] ease-[var(--easing-smooth)]"
+    primary: "bg-[var(--glass-fill)] border border-[var(--glass-border-hover)] text-[var(--text-accent)] hover:shadow-[var(--glow-intense)]",
+    secondary: "bg-transparent border border-[var(--glass-border)] text-white hover:shadow-[var(--glow-subtle)]",
+    ghost: "bg-transparent text-[var(--text-secondary)] border border-transparent hover:shadow-[var(--glow-subtle)]"
   };
 
   return (

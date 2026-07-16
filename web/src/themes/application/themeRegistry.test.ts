@@ -12,5 +12,6 @@ describe("theme definition registry", () => {
     expect(THEME_DEFINITIONS.ember.Application).not.toBe(THEME_DEFINITIONS.cinema.Application);
     expect(THEME_DEFINITIONS.aurora.Application).toBe(THEME_DEFINITIONS.cinema.Application);
     expect(THEME_DEFINITIONS.cinema.Application).toBe(THEME_DEFINITIONS.gemini.Application);
+    expect(definitions.every((theme) => theme.motion.view && theme.motion.billboard && theme.motion.cardHover.scale > 1)).toBe(true);
   });
 });
