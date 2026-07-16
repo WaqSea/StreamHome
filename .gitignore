@@ -49,6 +49,9 @@ bin/
 .gemini/antigravity/
 memory-bank/
 AGENTS.md
+memory-bank/systemPatterns.md
+memory-bank/progress.md
+memory-bank/activeContext.md
 
 #Unimportant project files
 banner.txt
