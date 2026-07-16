@@ -5,6 +5,7 @@ import './themes/index';
 
 import { LoginPage } from './pages/LoginPage';
 import { ProfileSelectPage } from './pages/ProfileSelectPage';
+import { ProfileEditPage } from './pages/ProfileEditPage';
 import { AuthenticatedApp } from './pages/AuthenticatedApp';
 
 import { AuthGuard } from './components/guards/AuthGuard';
@@ -28,6 +29,12 @@ export default function App() {
         <Route path="/profiles" element={
           <AuthGuard>
             <ProfileSelectPage />
+          </AuthGuard>
+        } />
+
+        <Route path="/profiles/:profileId/edit" element={
+          <AuthGuard>
+            <ProfileEditPage />
           </AuthGuard>
         } />
         

@@ -4,6 +4,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { MediaArtwork } from "../../../components/media/MediaArtwork";
 import { ProgressBar } from "../../../components/ui/ProgressBar";
 import { appUrl, type AppView } from "../../../navigation/queryState";
+import { profileEditUrl } from "../../../navigation/profileEditing";
 import { useAuthStore } from "../../../stores/authStore";
 import { useProfileStore } from "../../../stores/profileStore";
 import type { ThemeApplicationProps } from "../../../themes/application/contracts";
@@ -103,7 +104,7 @@ export function EmberDashboard({ query, controller, presentation }: ThemeApplica
   const openWatch = (movie: Movie) => appNavigate("watch", { media: movie.id });
   const closeDetails = () => (location.state as { fromApp?: boolean } | null)?.fromApp ? navigate(-1) : appNavigate("home");
   const selected = query.media ? controller.movies.find((movie) => movie.id === query.media) ?? null : null;
-  const navigationProps = { profile, activeView: query.view, query: query.q, isAdmin: profile.id === "1", onView: (view: AppView) => appNavigate(view), onSearch: (value: string) => appNavigate("search", value ? { q: value } : {}), onProfiles: () => { clearProfile(); navigate("/profiles"); }, onAdmin: () => appNavigate("admin", { section: "account" }), onLogout: logout };
+  const navigationProps = { profile, activeView: query.view, query: query.q, isAdmin: profile.id === "1", onView: (view: AppView) => appNavigate(view), onSearch: (value: string) => appNavigate("search", value ? { q: value } : {}), onEditProfile: () => navigate(profileEditUrl(profile.id), { state: { returnTo: `${location.pathname}${location.search}${location.hash}` } }), onProfiles: () => { clearProfile(); navigate("/profiles"); }, onAdmin: () => appNavigate("admin", { section: "account" }), onLogout: logout };
   const content = controller.loading ? <EmberStatePanel code="CATALOG HANDSHAKE" title="Loading server catalog" body="Synchronizing this profile with the server index." loading /> : query.view === "home" ? <EmberHome controller={controller} onDetails={openDetails} onPlay={openWatch} /> : query.view === "movies" || query.view === "series" ? <EmberBrowse query={query} controller={controller} onOpen={openDetails} onPlay={openWatch} /> : query.view === "watchlist" ? <EmberWatchlist controller={controller} onOpen={openDetails} /> : query.view === "search" ? <EmberSearch query={query} controller={controller} onOpen={openDetails} onSearch={(value) => appNavigate("search", value ? { q: value } : {})} /> : query.view === "downloads" ? <EmberDownloads /> : query.view === "details" ? selected ? <DetailsRouter movie={selected} onClose={closeDetails} isWatchlisted={controller.watchlist.includes(selected.id)} onWatchlistChange={controller.setWatchlist} /> : <EmberStatePanel code="INVALID MEDIA ID" title="Title not found" body="That media identifier is not present in the server catalog." /> : null;
 
   return <div className="theme-app theme-app--ember ember-app" data-theme="ember" data-view={query.view}><Background /><Navigation {...navigationProps} /><main className="theme-main ember-main">{controller.error && <div className="ember-error" role="alert">{controller.error}</div>}<AnimatedView theme="ember" viewKey={appViewMotionKey(query)}>{content}</AnimatedView></main></div>;

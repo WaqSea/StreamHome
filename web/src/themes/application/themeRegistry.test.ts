@@ -1,6 +1,6 @@
 import React from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { THEME_DEFINITIONS } from "./themeRegistry";
 
 const navigationProps = {
@@ -9,6 +9,7 @@ const navigationProps = {
   isAdmin: true,
   onView: () => undefined,
   onSearch: () => undefined,
+  onEditProfile: () => undefined,
   onProfiles: () => undefined,
   onAdmin: () => undefined,
   onLogout: () => undefined,
@@ -44,6 +45,17 @@ describe("theme definition registry", () => {
     for (const definition of Object.values(THEME_DEFINITIONS)) {
       const { container, unmount } = render(React.createElement(definition.Navigation, navigationProps));
       expect(container.querySelectorAll(".theme-profile-control > i")).toHaveLength(0);
+      unmount();
+    }
+  });
+
+  it("routes profile editing through the shared callback in every theme", () => {
+    for (const definition of Object.values(THEME_DEFINITIONS)) {
+      const onEditProfile = vi.fn();
+      const { unmount } = render(React.createElement(definition.Navigation, { ...navigationProps, onEditProfile }));
+      fireEvent.click(screen.getAllByLabelText("Open settings for Admin")[0]);
+      fireEvent.click(screen.getByRole("menuitem", { name: "Edit profile" }));
+      expect(onEditProfile).toHaveBeenCalledOnce();
       unmount();
     }
   });

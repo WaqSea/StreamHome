@@ -2,7 +2,7 @@
 
 ## Current focus
 
-The approved web-only motion rebuild is implemented. StreamHome now uses responsive semantic timings, directional view transitions, staged local state choreography, asymmetric overlays and player controls, perceptible theme ambience, and application-wide reduced-motion behavior. Generated artwork paths are resolved through a shared cached probe before an image mounts, preventing repeated wrong-year 404 errors such as The Furious reporting 2026 while its physical folder is 2025. The server remains unchanged and is the source of truth for all media information.
+The full-page themed profile editor and approved web-only motion rebuild are implemented. Profile editing now uses an authenticated, return-aware `/profiles/:profileId/edit` route with live Ember, Aurora, Cinema, or Gemini previews, allowlisted avatar presets, dirty-state protection, and protected deletion. Generated artwork paths are resolved through a shared cached probe before an image mounts, preventing repeated wrong-year 404 errors such as The Furious reporting 2026 while its physical folder is 2025. The server remains unchanged and is the source of truth for all media information.
 
 ## Current web architecture
 
@@ -18,7 +18,8 @@ The approved web-only motion rebuild is implemented. StreamHome now uses respons
 - Billboards track automatic/manual source and direction and transition over 1.05 seconds. Category arrows use an interruptible 760ms requestAnimationFrame controller with edge clamping and cancel on direct pointer, touch, or wheel input.
 - Buttons preserve their existing colors on hover and use transform/shadow feedback. Reduced-motion mode uses short opacity fades and disables spatial motion and decorative animation.
 - Movies and Series use rotating server-catalog billboards followed by per-genre horizontal rails. Rail controls are attached to the left/right edges and native horizontal scrollbars are hidden.
-- The active-profile control opens Edit Profile, Switch Profile, and Sign Out actions. Its placement is surface-aware: the bottom Gemini desktop sidebar opens upward, while top and mobile navigation opens downward, with viewport-safe menu bounds. Editing can change the name or canonical theme without leaving the application; switching profiles remains explicit.
+- The active-profile control opens Edit Profile, Switch Profile, and Sign Out actions. Its placement is surface-aware: the bottom Gemini desktop sidebar opens upward, while top and mobile navigation opens downward, with viewport-safe menu bounds. Every Edit Profile entry point opens the dedicated editor and preserves its exact originating URL for Save, Cancel, and deletion return behavior.
+- The profile editor owns draft name, theme, and avatar state. Theme changes preview only inside the editor until Save; saving the active profile then synchronizes the global theme while preserving existing PIN fields. Unknown legacy avatar values render a deterministic allowlisted fallback, so arbitrary stored CSS is never applied.
 - The shared profile control intentionally contains only the avatar and profile name; the former caret `<i>` decoration is removed in every theme.
 - The supplied StreamHome neon mark is a production web brand asset at `web/public/logo.png`. A shared `BrandLogo` component renders it on login, profile selection, all four theme navigation systems, Gemini compact/mobile navigation, and the admin header; the same asset is the browser favicon.
 - `MediaArtwork` accepts direct server media paths and absolute HTTP(S) URLs. Compact filenames resolve through one shared cached range probe across generated `/media/...` candidates, mount only the valid image, crossfade after decode, and never substitute bundled media.
@@ -34,4 +35,4 @@ The approved web-only motion rebuild is implemented. StreamHome now uses respons
 
 ## Next step
 
-TypeScript lint, all 39 frontend tests, the production build, diff checks, and unauthenticated browser/console QA pass. Full authenticated browser QA and the required database checker remain unavailable because the existing local Python environment cannot start the server without `sqlmodel`.
+TypeScript lint, all 51 frontend tests, the production build, and diff checks pass. Browser QA confirmed the authenticated editor route reaches its themed loading state, then safely returns to login when the local session is rejected; full authenticated interaction QA and the required database checker remain unavailable because the existing local Python environment cannot start the server without `sqlmodel`.

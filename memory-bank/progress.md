@@ -1,5 +1,15 @@
 # Progress Status
 
+## Active full-page profile editor
+
+- [x] Added the authenticated profile-edit route, safe return-target contract, navigation callback contract, and allowlisted avatar-preset model.
+- [x] Built the full-page editor with themed ambient preview, identity and avatar controls, dirty-state protection, loading/error states, and protected deletion.
+- [x] Added responsive Ember, Aurora, Cinema, and Gemini editor presentation with accessible controls and reduced-motion behavior.
+- [x] Replaced profile-selection and all four themed navigation edit entry points with return-aware page routing and removed the obsolete edit dialog implementation.
+- [x] Added focused coverage for editor routing, save/PIN preservation, theme updates, dirty-state protection, server fallback loading, deletion protection, and allowlisted avatar safety.
+- [x] TypeScript lint, 51 frontend tests, the production build, diff checks, and the available browser route/auth-boundary QA pass.
+- [x] Completed implementation and validation for the required prefixed commit; full authenticated browser QA and the database checker remain blocked by the missing local `sqlmodel` runtime.
+
 ## Active comprehensive motion rebuild
 
 - [x] Removed the shared profile-control caret `<i>` decoration and its obsolete CSS from Ember, Aurora, Cinema, and Gemini navigation.

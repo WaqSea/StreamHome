@@ -1,4 +1,4 @@
-import type { Episode, Movie, Profile } from "../types/api";
+import type { Episode, Movie } from "../types/api";
 import type { ThemeId } from "../types/theme";
 
 export const SUPPORTED_THEMES: ThemeId[] = ["ember", "aurora", "cinema", "gemini"];
@@ -67,19 +67,6 @@ export function isPlayableMovie(movie: Movie): boolean {
 export function tmdbIdFromMovie(movie: Movie): number | null {
   const match = movie.id.match(/^(?:tv_|m_)(\d+)$/);
   return match ? Number(match[1]) : null;
-}
-
-const AVATAR_PALETTES = [
-  "linear-gradient(135deg, #2563eb, #4f46e5)",
-  "linear-gradient(135deg, #ea580c, #dc2626)",
-  "linear-gradient(135deg, #059669, #0d9488)",
-  "linear-gradient(135deg, #9333ea, #db2777)",
-];
-
-export function avatarBackground(profile: Pick<Profile, "id">): string {
-  let hash = 0;
-  for (const char of profile.id) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
-  return AVATAR_PALETTES[hash % AVATAR_PALETTES.length];
 }
 
 export function completionFraction(completionRate: number | null | undefined): number {

@@ -13,6 +13,7 @@ export interface ThemeNavigationProps {
   onView: (view: AppView) => void;
   onSearch: (query: string) => void;
   onProfiles: () => void;
+  onEditProfile: () => void;
   onAdmin: () => void;
   onLogout: () => void;
 }
