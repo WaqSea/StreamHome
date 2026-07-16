@@ -2,7 +2,7 @@
 
 ## Current focus
 
-The approved web-only Ember Obsidian Glass rebuild is complete. It includes profile management, view scroll restoration, and URL-synchronized series auto-advance. The server remains the source of truth for all media information.
+The current web-only repair restores server-owned artwork rendering. It retains the completed Ember rebuild, profile management, view scroll restoration, and URL-synchronized series auto-advance. The server remains unchanged and is the source of truth for all media information.
 
 ## Current web architecture
 
@@ -12,7 +12,7 @@ The approved web-only Ember Obsidian Glass rebuild is complete. It includes prof
 - The authenticated application uses canonical query state such as `/?profile=1&view=series`; search, genres, details, seasons, playback, downloads, and admin sections are deep-linkable.
 - Shared catalog controller hooks own API behavior while a typed theme registry selects distinct Ember, Aurora, Cinema, and Gemini navigation, heroes, cards, details, and player presentation.
 - Ember follows the Obsidian Frost reference: sharp obsidian glass, restrained orange glow, scanlines, serif display type, and technical mono labels. Aurora, Cinema, and Gemini retain separate editorial, cinematic, and workspace identities.
-- `MediaArtwork` accepts only server media paths or absolute HTTP(S) URLs. It never substitutes a bundled media image.
+- `MediaArtwork` accepts direct server media paths and absolute HTTP(S) URLs. Compact server artwork filenames are resolved against the server-returned movie or episode identity into `/media/...` candidates; it never substitutes a bundled media image.
 - The player resolves its movie or episode from authenticated server APIs and refuses playback when no physical media URL exists.
 - Admin exposes only implemented server capabilities: current-account TOTP, storage/HEVC settings, and read-only download events.
 
@@ -25,4 +25,4 @@ The approved web-only Ember Obsidian Glass rebuild is complete. It includes prof
 
 ## Next step
 
-The implementation has passed frontend lint, tests, production build, live desktop/mobile browser QA, the media-boundary scan, and the server database checker. No follow-up implementation is currently pending.
+The artwork repair has passed TypeScript lint, 24 frontend tests, the production build, the required database checker, server-media boundary scanning, complete 66-file catalog coverage, and visual source-file inspection. No implementation follow-up is pending.

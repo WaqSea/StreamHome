@@ -25,6 +25,14 @@ The server was deliberately not changed during the current web repair. Existing 
 - [x] Series playback now resolves the ordered server episode list, auto-advances to the next playable episode, and replaces the URL `media` parameter without adding a redundant history entry.
 - [x] Decorative Ember animation pauses while the document is hidden and respects reduced-motion preferences.
 
+## Server artwork compatibility
+
+- [x] Kept every poster, backdrop, thumbnail, and artwork metadata record server-owned; no media assets were added to the web.
+- [x] Added a web resolver for compact server references such as `/poster.jpg`, `/backdrop.jpg`, and `/thumbnail.jpg`.
+- [x] Artwork candidates are derived only from the current server-returned media identity and resolve through `/media/...` for movies, series, and episodes.
+- [x] `MediaArtwork` retries canonical server paths, including limited catalog/folder year drift, before rendering the unavailable state.
+- [x] Wired server media context through Ember and the Aurora/Cinema/Gemini compatibility application, details views, search results, and episode cards.
+
 ## Previous web repair baseline
 
 - [x] Replaced optimistic/mismatched client types with normalization at the API boundary for auth, movies, episodes, playback, profiles, settings, and queue events.
@@ -40,12 +48,14 @@ The server was deliberately not changed during the current web repair. Existing 
 ## Validation
 
 - [x] `npm run lint`
-- [x] `npm test` (10 files, 21 tests)
+- [x] `npm test` (10 files, 24 tests)
 - [x] `npm run build`
 - [x] Live browser validation against the local server: Ember desktop/mobile home, movies, details, series-empty, downloads-empty, profile gallery/settings, safe create/delete, query navigation, and scroll restoration.
 - [x] Created and removed a temporary Gemini profile during QA to verify the Aurora/Cinema/Gemini compatibility application remains intact.
 - [x] `server/scratch/check_db.py` (33 catalog records, 0 episodes, 0 playback sessions).
 - [x] Production web tree scan found no bundled media files, metadata records, or temporary QA artifacts.
+- [x] Artwork coverage check resolved all 66 poster/backdrop files for all 33 current catalog records; every file hash is distinct and none are missing.
+- [x] Visual file inspection confirmed the resolved server artwork files are valid, distinct images. Current local browser access was unavailable, so this repair was validated through component rendering tests and complete filesystem coverage rather than an additional live-app browser pass.
 
 ## Remaining server backlog
 

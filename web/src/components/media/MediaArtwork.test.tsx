@@ -10,6 +10,15 @@ describe("MediaArtwork", () => {
     expect(screen.queryByRole("img", { name: "Example" })).toBeNull();
   });
 
+  it("resolves and retries media-specific server artwork", () => {
+    const media = { id: "m_1280738", title: "The Furious", type: "movie" as const, releaseYear: 2026 };
+    render(<MediaArtwork src="/poster.jpg" alt="The Furious" media={media} />);
+    const image = screen.getByRole("img", { name: "The Furious" });
+    expect(image.getAttribute("src")).toBe("/media/Movies/The%20Furious_2026_TMDB_1280738/poster.jpg");
+    fireEvent.error(image);
+    expect(screen.getByRole("img", { name: "The Furious" }).getAttribute("src")).toBe("/media/Movies/The%20Furious_2025_TMDB_1280738/poster.jpg");
+  });
+
   it("falls back when a server image fails", () => {
     render(<MediaArtwork src="/media/Movies/example/poster.jpg" alt="Example" />);
     fireEvent.error(screen.getByRole("img", { name: "Example" }));

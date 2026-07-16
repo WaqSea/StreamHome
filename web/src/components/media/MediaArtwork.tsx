@@ -1,20 +1,26 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { cn } from "../../utils/cn";
-import { isServerArtworkUrl } from "../../utils/media";
+import { serverArtworkCandidates, type ArtworkEpisodeIdentity, type ArtworkMediaIdentity } from "../../utils/media";
 
 interface MediaArtworkProps {
   src: string | null | undefined;
   alt: string;
   className?: string;
+  media?: ArtworkMediaIdentity;
+  episode?: ArtworkEpisodeIdentity;
 }
 
-export function MediaArtwork({ src, alt, className }: MediaArtworkProps) {
-  const usable = isServerArtworkUrl(src);
-  const [failed, setFailed] = useState(false);
+export function MediaArtwork({ src, alt, className, media, episode }: MediaArtworkProps) {
+  const candidates = useMemo(
+    () => serverArtworkCandidates(src, media, episode),
+    [episode?.episodeNumber, episode?.seasonNumber, media?.id, media?.releaseYear, media?.title, media?.type, src],
+  );
+  const candidateKey = candidates.join("\n");
+  const [candidateIndex, setCandidateIndex] = useState(0);
 
-  useEffect(() => setFailed(false), [src]);
+  useEffect(() => setCandidateIndex(0), [candidateKey]);
 
-  if (!usable || failed) {
+  if (!candidates[candidateIndex]) {
     return (
       <div
         role="img"
@@ -28,5 +34,5 @@ export function MediaArtwork({ src, alt, className }: MediaArtworkProps) {
     );
   }
 
-  return <img src={src} alt={alt} className={className} onError={() => setFailed(true)} />;
+  return <img src={candidates[candidateIndex]} alt={alt} className={className} onError={() => setCandidateIndex((index) => index + 1)} />;
 }
