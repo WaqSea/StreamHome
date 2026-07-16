@@ -19,6 +19,8 @@
   --accent-container: #ff5f1f;
   --accent-muted: #8B310E;
   --accent-on-primary: #5c1900;
+  --selection-background: #ff7a3d;
+  --selection-foreground: #1e100b;
 
   /* Glows */
   --glow-active: 0 0 10px rgba(255, 95, 31, 0.5);

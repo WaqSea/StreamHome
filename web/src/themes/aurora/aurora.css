@@ -16,6 +16,8 @@
   --accent-container: #888888;
   --accent-muted: #444444;
   --accent-on-primary: #050505;
+  --selection-background: #d8c7ff;
+  --selection-foreground: #050505;
 
   --glow-active: 0 0 20px rgba(255, 255, 255, 0.1);
   --glow-intense: 0 0 30px rgba(255, 255, 255, 0.15);
