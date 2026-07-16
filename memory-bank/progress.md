@@ -1,5 +1,19 @@
 # Progress Status
 
+## Active theme interaction and catalog-control redesign
+
+- [x] Extended the typed theme presentation contract with distinct terminal, editorial, cinematic, and workspace interaction profiles, including action, navigation, card, rail, timing, and easing identities.
+- [x] Propagated interaction profiles to dashboard, profile editor, admin, and player roots so theme motion is selected semantically instead of by color-only global hover rules.
+- [x] Rebuilt billboard scheduling around a resettable 10-second timeout; manual selection resets the countdown, keyboard-visible focus and hidden documents pause it, pointer focus does not strand the timer, and reduced-motion preference no longer disables functional rotation.
+- [x] Changed billboard replacement to sequential exit-then-enter choreography with per-theme transition timing and opacity-only reduced-motion variants.
+- [x] Added understated active-billboard progress indicators that pause with focused billboards.
+- [x] Replaced fixed navigation search widths with fluid clamp-based input, action, and typography sizing; Aurora now retains search through intermediate desktop widths.
+- [x] Replaced full-height rail overlays with compact centered controls and distinct square, orb, cinema-disc, and rounded-module presentation.
+- [x] Added distinct action grammars: Ember edge growth, Aurora glass bloom, Cinema controlled theatrical growth, and Gemini directional modular lift.
+- [x] TypeScript lint, 58 frontend tests, production build, diff checks, and available login-boundary browser QA pass with no runtime errors or horizontal overflow.
+- [x] The required database checker was attempted and remains environment-blocked because Python cannot import `sqlmodel`; no server behavior changed.
+- [x] Authenticated four-theme visual QA remains session-blocked and is documented as the only frontend QA limitation; implementation is ready for the required prefixed commit.
+
 ## Active hover interaction rebuild
 
 - [x] Removed the universal 4% button scale, slow shared hover utilities, competing Framer card transforms, and Ember pointer-tilt/glare implementation.

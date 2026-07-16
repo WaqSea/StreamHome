@@ -67,7 +67,7 @@ export function AdminGate() {
   if (authenticated) return <motion.div key="admin" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: reduced ? MOTION_TIMINGS.reduced : MOTION_TIMINGS.viewEnter }}><AdminCenter /></motion.div>;
 
   return (
-    <main className={`theme-app admin-auth-screen ${definition.shellClass}`} data-theme={theme}>
+    <main className={`theme-app admin-auth-screen ${definition.shellClass}`} data-theme={theme} data-interaction={definition.interaction.id}>
       <Background />
       <motion.div initial={reduced ? { opacity: 0 } : { opacity: 0, y: 24, scale: .97 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ duration: reduced ? MOTION_TIMINGS.reduced : MOTION_TIMINGS.dialogEnter, ease: MOTION_EASE }}><GlassPane className="admin-auth-panel" spotlight={false}>
         <h1 className="text-2xl font-semibold">Admin reauthentication</h1>

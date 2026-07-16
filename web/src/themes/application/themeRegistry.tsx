@@ -10,7 +10,7 @@ import { CinemaBackground } from "../cinema/CinemaBackground";
 import { EmberBackground } from "../ember/EmberBackground";
 import { ScanLines } from "../ember/ScanLines";
 import { GeminiBackground } from "../gemini/GeminiBackground";
-import type { ThemeApplicationProps, ThemeNavigationProps, ThemePresentation } from "./contracts";
+import type { ThemeApplicationProps, ThemeInteractionProfile, ThemeNavigationProps, ThemePresentation } from "./contracts";
 import { MOTION_EASE, MOTION_TIMINGS, THEME_MOTION } from "../../motion/motionSystem";
 import { BrandLogo } from "../../components/brand/BrandLogo";
 export type { ThemeNavigationProps } from "./contracts";
@@ -75,11 +75,18 @@ function EmberBackdrop() { return <><EmberBackground suspendWhenHidden respectRe
 
 export interface ThemeDefinition extends ThemePresentation { Application: React.ComponentType<ThemeApplicationProps>; }
 
+const THEME_INTERACTIONS: Record<ThemeId, ThemeInteractionProfile> = {
+  ember: { id: "terminal", action: "edge-grow", navigation: "signal-line", card: "technical-tilt", rail: "square", timing: { enterMs: 170, exitMs: 290, pressMs: 90 }, easing: "cubic-bezier(.16,1,.3,1)" },
+  aurora: { id: "editorial", action: "soft-bloom", navigation: "glass-pill", card: "floating-glass", rail: "orb", timing: { enterMs: 260, exitMs: 440, pressMs: 120 }, easing: "cubic-bezier(.22,1,.36,1)" },
+  cinema: { id: "cinematic", action: "theatrical-grow", navigation: "spotlight-underline", card: "poster-depth", rail: "cinema-disc", timing: { enterMs: 230, exitMs: 360, pressMs: 100 }, easing: "cubic-bezier(.12,.78,.18,1)" },
+  gemini: { id: "workspace", action: "modular-lift", navigation: "directional-rail", card: "module-elevation", rail: "rounded-module", timing: { enterMs: 190, exitMs: 310, pressMs: 90 }, easing: "cubic-bezier(.2,.8,.2,1)" },
+};
+
 export const THEME_DEFINITIONS: Record<ThemeId, ThemeDefinition> = {
-  ember: { id: "ember", label: "Ember", Application: EmberDashboard, Background: EmberBackdrop, Navigation: EmberNavigation, shellClass: "theme-app--ember", heroVariant: "terminal", browseVariant: "technical", cardVariant: "sharp", detailsVariant: "terminal", playerVariant: "terminal", motion: THEME_MOTION.ember },
-  aurora: { id: "aurora", label: "Aurora", Application: LegacyThemeAdapter, Background: AuroraBackground, Navigation: AuroraNavigation, shellClass: "theme-app--aurora", heroVariant: "editorial", browseVariant: "masonry", cardVariant: "glass", detailsVariant: "editorial", playerVariant: "minimal", motion: THEME_MOTION.aurora },
-  cinema: { id: "cinema", label: "Cinema", Application: LegacyThemeAdapter, Background: CinemaBackground, Navigation: CinemaNavigation, shellClass: "theme-app--cinema", heroVariant: "cinematic", browseVariant: "rails", cardVariant: "poster", detailsVariant: "cinematic", playerVariant: "cinematic", motion: THEME_MOTION.cinema },
-  gemini: { id: "gemini", label: "Gemini", Application: LegacyThemeAdapter, Background: GeminiBackground, Navigation: GeminiNavigation, shellClass: "theme-app--gemini", heroVariant: "workspace", browseVariant: "modules", cardVariant: "module", detailsVariant: "workspace", playerVariant: "workspace", motion: THEME_MOTION.gemini },
+  ember: { id: "ember", label: "Ember", Application: EmberDashboard, Background: EmberBackdrop, Navigation: EmberNavigation, shellClass: "theme-app--ember", heroVariant: "terminal", browseVariant: "technical", cardVariant: "sharp", detailsVariant: "terminal", playerVariant: "terminal", interaction: THEME_INTERACTIONS.ember, motion: THEME_MOTION.ember },
+  aurora: { id: "aurora", label: "Aurora", Application: LegacyThemeAdapter, Background: AuroraBackground, Navigation: AuroraNavigation, shellClass: "theme-app--aurora", heroVariant: "editorial", browseVariant: "masonry", cardVariant: "glass", detailsVariant: "editorial", playerVariant: "minimal", interaction: THEME_INTERACTIONS.aurora, motion: THEME_MOTION.aurora },
+  cinema: { id: "cinema", label: "Cinema", Application: LegacyThemeAdapter, Background: CinemaBackground, Navigation: CinemaNavigation, shellClass: "theme-app--cinema", heroVariant: "cinematic", browseVariant: "rails", cardVariant: "poster", detailsVariant: "cinematic", playerVariant: "cinematic", interaction: THEME_INTERACTIONS.cinema, motion: THEME_MOTION.cinema },
+  gemini: { id: "gemini", label: "Gemini", Application: LegacyThemeAdapter, Background: GeminiBackground, Navigation: GeminiNavigation, shellClass: "theme-app--gemini", heroVariant: "workspace", browseVariant: "modules", cardVariant: "module", detailsVariant: "workspace", playerVariant: "workspace", interaction: THEME_INTERACTIONS.gemini, motion: THEME_MOTION.gemini },
 };
 
 export function getThemeDefinition(id: ThemeId): ThemeDefinition { return THEME_DEFINITIONS[id] ?? THEME_DEFINITIONS.ember; }

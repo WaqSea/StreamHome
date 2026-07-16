@@ -18,7 +18,9 @@ export const MOTION_TIMINGS = {
   viewEnter: 0.52,
   view: 0.8,
   rail: 760,
-  billboard: 1.05,
+  billboardExit: 0.88,
+  billboardEnter: 1.12,
+  billboard: 2,
   billboardCopy: 0.62,
   profileMorph: 0.95,
   profileEntry: 0.62,
@@ -35,6 +37,7 @@ export const MOTION_EASE = [0.16, 1, 0.3, 1] as const;
 export interface ThemeMotionDefinition {
   view: Variants;
   billboard: Variants;
+  billboardTiming: { enter: number; exit: number };
 }
 
 function directional(values: Record<string, string | number>, direction: number) {
@@ -57,28 +60,38 @@ const viewVariants = (initial: Record<string, string | number>, exit: Record<str
   exit: (direction: number = 1) => ({ ...directional(exit, direction), transition: { duration: MOTION_TIMINGS.viewExit, ease: MOTION_EASE } }),
 });
 
-const billboardVariants = (initial: Record<string, string | number>, exit: Record<string, string | number>): Variants => ({
+const billboardVariants = (initial: Record<string, string | number>, exit: Record<string, string | number>, timing: { enter: number; exit: number }): Variants => ({
   initial: (direction: number = 1) => ({ ...initial, x: typeof initial.x === "number" ? initial.x * direction : initial.x }),
-  animate: { opacity: 1, x: 0, y: 0, scale: 1, filter: "blur(0px)" },
-  exit: (direction: number = 1) => ({ ...exit, x: typeof exit.x === "number" ? exit.x * direction : exit.x }),
+  animate: { opacity: 1, x: 0, y: 0, scale: 1, filter: "blur(0px)", transition: { duration: timing.enter, ease: MOTION_EASE } },
+  exit: (direction: number = 1) => ({ ...exit, x: typeof exit.x === "number" ? exit.x * direction : exit.x, transition: { duration: timing.exit, ease: MOTION_EASE } }),
 });
+
+export const REDUCED_BILLBOARD_MOTION: Variants = {
+  initial: { opacity: 0 },
+  animate: { opacity: 1, transition: { duration: MOTION_TIMINGS.reduced } },
+  exit: { opacity: 0, transition: { duration: MOTION_TIMINGS.reduced } },
+};
 
 export const THEME_MOTION: Record<ThemeId, ThemeMotionDefinition> = {
   ember: {
     view: viewVariants({ opacity: 0, y: 26, scale: 1.012, filter: "blur(9px)" }, { opacity: 0, y: -16, scale: .992, filter: "blur(7px)" }),
-    billboard: billboardVariants({ opacity: 0, x: 34, scale: 1.022, filter: "blur(11px)" }, { opacity: 0, x: -26, scale: .99, filter: "blur(8px)" }),
+    billboardTiming: { enter: 1.08, exit: .84 },
+    billboard: billboardVariants({ opacity: 0, x: 34, scale: 1.022, filter: "blur(11px)" }, { opacity: 0, x: -26, scale: .99, filter: "blur(8px)" }, { enter: 1.08, exit: .84 }),
   },
   aurora: {
     view: viewVariants({ opacity: 0, y: 34, scale: .985, filter: "blur(14px)" }, { opacity: 0, y: -22, scale: 1.008, filter: "blur(12px)" }),
-    billboard: billboardVariants({ opacity: 0, x: 18, y: 28, scale: .985, filter: "blur(16px)" }, { opacity: 0, x: -14, y: -20, scale: 1.012, filter: "blur(13px)" }),
+    billboardTiming: { enter: 1.24, exit: .96 },
+    billboard: billboardVariants({ opacity: 0, x: 18, y: 28, scale: .985, filter: "blur(16px)" }, { opacity: 0, x: -14, y: -20, scale: 1.012, filter: "blur(13px)" }, { enter: 1.24, exit: .96 }),
   },
   cinema: {
     view: viewVariants({ opacity: 0, x: 24, scale: 1.018, filter: "blur(8px)" }, { opacity: 0, x: -20, scale: 1.026, filter: "blur(7px)" }),
-    billboard: billboardVariants({ opacity: 0, x: 42, scale: 1.028, filter: "blur(8px)" }, { opacity: 0, x: -34, scale: 1.012, filter: "blur(6px)" }),
+    billboardTiming: { enter: 1.16, exit: .92 },
+    billboard: billboardVariants({ opacity: 0, x: 42, scale: 1.028, filter: "blur(8px)" }, { opacity: 0, x: -34, scale: 1.012, filter: "blur(6px)" }, { enter: 1.16, exit: .92 }),
   },
   gemini: {
     view: viewVariants({ opacity: 0, x: 30, y: 12, scale: .982, filter: "blur(10px)" }, { opacity: 0, x: -22, y: -8, scale: .99, filter: "blur(8px)" }),
-    billboard: billboardVariants({ opacity: 0, x: 36, y: 16, scale: .98, filter: "blur(12px)" }, { opacity: 0, x: -28, y: -10, scale: .99, filter: "blur(9px)" }),
+    billboardTiming: { enter: .98, exit: .76 },
+    billboard: billboardVariants({ opacity: 0, x: 36, y: 16, scale: .98, filter: "blur(12px)" }, { opacity: 0, x: -28, y: -10, scale: .99, filter: "blur(9px)" }, { enter: .98, exit: .76 }),
   },
 };
 

@@ -31,6 +31,16 @@ describe("semantic hover interaction system", () => {
       '.catalog-card[data-card-theme="poster"]:hover',
       '.catalog-card[data-card-theme="module"]:hover',
     ]) expect(interactions).toContain(selector);
+    for (const profile of ["terminal", "editorial", "cinematic", "workspace"]) {
+      expect(interactions).toContain(`data-interaction="${profile}"`);
+    }
+  });
+
+  it("uses fluid search sizing and compact centered rail controls", () => {
+    expect(application).toContain("width: clamp(150px,18vw,260px)");
+    expect(application).toContain("font-size: clamp(10px,.76vw,13px)");
+    expect(application).toContain("top: 50%; bottom: auto; width: 42px; height: 42px");
+    expect(ember).toContain("top: 50%; bottom: auto; width: 40px; height: 40px");
   });
 
   it("covers every major interactive surface", () => {

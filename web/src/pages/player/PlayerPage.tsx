@@ -296,7 +296,7 @@ export function PlayerPage() {
   const usableSubtitles = asset.subtitles.filter((subtitle) => isServerArtworkUrl(subtitle.url ?? subtitle.path));
 
   return (
-    <motion.div ref={containerRef} className="player-view fixed inset-0 z-[200] bg-black text-white" data-theme={theme} data-player-theme={definition.playerVariant} onClick={revealControls} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: reduced ? MOTION_TIMINGS.reduced : MOTION_TIMINGS.viewEnter }}>
+    <motion.div ref={containerRef} className="player-view fixed inset-0 z-[200] bg-black text-white" data-theme={theme} data-interaction={definition.interaction.id} data-player-theme={definition.playerVariant} onClick={revealControls} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: reduced ? MOTION_TIMINGS.reduced : MOTION_TIMINGS.viewEnter }}>
       <video
         ref={videoRef}
         src={videoSrc}

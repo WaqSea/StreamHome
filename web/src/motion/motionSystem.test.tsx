@@ -31,7 +31,9 @@ describe("cinematic motion system", () => {
     expect(MOTION_TIMINGS.dialogExit).toBeLessThan(MOTION_TIMINGS.dialogEnter);
     expect(MOTION_TIMINGS.controlsEnter).toBeLessThan(MOTION_TIMINGS.controlsExit);
     expect(MOTION_TIMINGS.rail).toBe(760);
-    expect(MOTION_TIMINGS.billboard).toBe(1.05);
+    expect(MOTION_TIMINGS.billboardExit).toBe(.88);
+    expect(MOTION_TIMINGS.billboardEnter).toBe(1.12);
+    expect(MOTION_TIMINGS.billboardExit + MOTION_TIMINGS.billboardEnter).toBe(MOTION_TIMINGS.billboard);
     expect(MOTION_TIMINGS.profileMorph).toBe(.95);
     expect(MOTION_TIMINGS.profileEntry).toBe(.62);
     expect(MOTION_TIMINGS.reduced).toBeGreaterThanOrEqual(.16);
@@ -43,6 +45,7 @@ describe("cinematic motion system", () => {
     expect(definitions).toHaveLength(4);
     expect(new Set(definitions.map((definition) => JSON.stringify(resolve(definition.view.initial)))).size).toBe(4);
     expect(definitions.every((definition) => resolve(definition.billboard.initial))).toBe(true);
+    expect(new Set(definitions.map((definition) => JSON.stringify(definition.billboardTiming))).size).toBe(4);
   });
 
   it("exposes normal and reduced preferences through one provider", () => {

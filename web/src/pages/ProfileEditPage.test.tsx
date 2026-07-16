@@ -19,6 +19,7 @@ vi.mock("../themes/application/themeRegistry", () => ({
   getThemeDefinition: (id: string) => ({
     id,
     shellClass: `theme-app--${id}`,
+    interaction: { id },
     Background: () => <div data-testid={`background-${id}`} />,
   }),
 }));

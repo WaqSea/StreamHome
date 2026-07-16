@@ -18,6 +18,18 @@ export interface ThemeNavigationProps {
   onLogout: () => void;
 }
 
+export type ThemeInteractionId = "terminal" | "editorial" | "cinematic" | "workspace";
+
+export interface ThemeInteractionProfile {
+  id: ThemeInteractionId;
+  action: "edge-grow" | "soft-bloom" | "theatrical-grow" | "modular-lift";
+  navigation: "signal-line" | "glass-pill" | "spotlight-underline" | "directional-rail";
+  card: "technical-tilt" | "floating-glass" | "poster-depth" | "module-elevation";
+  rail: "square" | "orb" | "cinema-disc" | "rounded-module";
+  timing: { enterMs: number; exitMs: number; pressMs: number };
+  easing: string;
+}
+
 export interface ThemePresentation {
   id: ThemeId;
   label: string;
@@ -29,6 +41,7 @@ export interface ThemePresentation {
   cardVariant: "sharp" | "glass" | "poster" | "module";
   detailsVariant: "terminal" | "editorial" | "cinematic" | "workspace";
   playerVariant: "terminal" | "minimal" | "cinematic" | "workspace";
+  interaction: ThemeInteractionProfile;
   motion: ThemeMotionDefinition;
 }
 
