@@ -1,55 +1,57 @@
-import React, { useEffect, useState } from "react";
-import { useAuthStore } from "../../stores/authStore";
-import type { DownloadEvent } from "../../types/api";
-import { downloadFraction } from "../../utils/media";
-import { GlassPane } from "../../components/ui/GlassPane";
+import React from "react";
 import { ProgressBar } from "../../components/ui/ProgressBar";
+import { useThemeStore } from "../../stores/themeStore";
+import { downloadFraction } from "../../utils/media";
+import { useDownloadStream, type DownloadConnectionState } from "./useDownloadStream";
+
+const CONNECTION_LABEL: Record<DownloadConnectionState, string> = {
+  disconnected: "Offline",
+  connecting: "Connecting",
+  connected: "Live",
+  reconnecting: "Reconnecting",
+};
+
+function statusKind(status: string) {
+  const value = status.toLowerCase();
+  if (value.includes("fail") || value.includes("error")) return "failed";
+  if (value.includes("complete") || value.includes("finish")) return "completed";
+  return "active";
+}
 
 export function ServerDownloads() {
-  const token = useAuthStore((state) => state.token);
-  const [downloads, setDownloads] = useState<DownloadEvent[]>([]);
-  const [connected, setConnected] = useState(false);
-
-  useEffect(() => {
-    if (!token) return;
-    const source = new EventSource(`/api/downloads/stream?token=${encodeURIComponent(token)}`);
-    source.onopen = () => setConnected(true);
-    source.onerror = () => setConnected(false);
-    source.onmessage = (event) => {
-      try {
-        const next = JSON.parse(event.data) as DownloadEvent[];
-        setDownloads(Array.isArray(next) ? next : []);
-      } catch {
-        setConnected(false);
-      }
-    };
-    return () => source.close();
-  }, [token]);
+  const theme = useThemeStore((state) => state.activeTheme);
+  const { downloads, connectionState } = useDownloadStream();
+  const connected = connectionState === "connected";
+  const emptyTitle = connected ? "No download activity" : connectionState === "reconnecting" ? "Restoring the live queue" : "Connecting to the server";
+  const emptyBody = connected ? "The server has not reported an active ingestion task." : "Waiting for the authenticated download event stream.";
 
   return (
-    <section className="server-downloads mx-auto max-w-5xl px-6 py-10">
-      <div className="mb-8 flex items-end justify-between gap-4">
+    <section className="server-downloads" data-download-theme={theme}>
+      <header className="server-downloads__header">
         <div>
-          <h1 className="text-3xl font-semibold">Server downloads</h1>
-          <p className="mt-2 text-[var(--text-muted)]">Live ingestion progress reported by the server.</p>
+          <p>SERVER QUEUE / LIVE</p>
+          <h1>Server downloads</h1>
+          <span>Live ingestion progress reported by the server.</span>
         </div>
-        <span className="text-xs uppercase tracking-wider text-[var(--text-muted)]">{connected ? "Connected" : "Reconnecting"}</span>
-      </div>
+        <strong data-state={connectionState}><i aria-hidden="true" />{CONNECTION_LABEL[connectionState]}</strong>
+      </header>
       {!downloads.length ? (
-        <GlassPane className="p-10 text-center text-[var(--text-muted)]" spotlight={false}>No download activity reported.</GlassPane>
+        <div className="server-downloads__empty" data-state={connectionState} role="status">
+          <small>{connected ? "QUEUE IDLE" : "QUEUE LINK"}</small>
+          <h2>{emptyTitle}</h2>
+          <p>{emptyBody}</p>
+        </div>
       ) : (
-        <div className="flex flex-col gap-4">
+        <div className="server-downloads__list" aria-live="polite">
           {downloads.map((download) => (
-            <GlassPane key={download.id} className="p-5" spotlight={false}>
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <h2 className="font-semibold">{download.title}</h2>
-                  <p className="mt-1 text-sm text-[var(--text-muted)]">{download.status} · {download.speed} · ETA {download.eta}</p>
-                </div>
-                <span className="font-[family-name:var(--font-mono)] text-sm">{Math.round(download.progress)}%</span>
-              </div>
-              <ProgressBar className="mt-4" progress={downloadFraction(download.progress)} />
-            </GlassPane>
+            <article key={download.id} data-status={statusKind(download.status)}>
+              <header>
+                <div><small>{download.status}</small><h2>{download.title}</h2></div>
+                <strong>{Math.round(download.progress)}%</strong>
+              </header>
+              <p>{download.speed} · ETA {download.eta}</p>
+              <ProgressBar className="server-downloads__progress" progress={downloadFraction(download.progress)} />
+            </article>
           ))}
         </div>
       )}
