@@ -427,8 +427,10 @@ class TMDBClient:
             except Exception as e:
                 logger.error(f"[TMDB Client] Error in background caching task for {item_dict.get('title')}: {e}")
 
-    async def discover_media(self, category: str, media_type: str = "movie") -> List[Dict[str, Any]]:
+    async def discover_media(self, category: str, media_type: str = "movie", profile_id: Optional[str] = None) -> List[Dict[str, Any]]:
         import asyncio
+        from services.recommendation import get_profile_preferences
+        
         is_tv = media_type.lower() in ("series", "tv")
         
         params = {
@@ -437,6 +439,20 @@ class TMDBClient:
         
         is_trending = category.lower() == "trending"
         
+        if profile_id and is_trending:
+            # Personalize trending using top genres and actors
+            prefs = await get_profile_preferences(profile_id)
+            if prefs["genre"]:
+                # Map our genre strings to TMDB IDs
+                genre_ids = [str(k) for k, v in GENRES_MAP.items() if v in prefs["genre"]]
+                if genre_ids:
+                    params["with_genres"] = "|".join(genre_ids[:3])  # OR top 3 genres
+            if prefs["actor"]:
+                # TMDB needs person IDs, but we only have names. A robust implementation would map names to IDs.
+                # For this StreamHome scope, we pass them if we happen to have IDs, but TMDB /discover doesn't take names directly.
+                # We will rely heavily on genres for TMDB discovery, while local sorting uses both actors and genres.
+                pass
+                
         if is_tv:
             path = "/discover/tv"
             local_prefix = "Series"

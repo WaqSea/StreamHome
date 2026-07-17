@@ -157,6 +157,34 @@ class Episode(SQLModel, table=True):
     def skip_markers(self, val: Dict[str, Any]):
         self.skip_markers_str = json.dumps(val or {})
 
+class TelemetryEvent(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    profile_id: str = Field(index=True)
+    event_type: str  # card_click, search_click, watchlist_add, watchlist_remove, playback_end
+    movie_id: Optional[str] = None
+    tmdb_id: Optional[int] = None
+    metadata_json: Optional[str] = Field(default="{}")
+    timestamp: float
+
+    @property
+    def event_metadata(self) -> Dict[str, Any]:
+        try:
+            return json.loads(self.metadata_json or "{}")
+        except Exception:
+            return {}
+
+    @event_metadata.setter
+    def event_metadata(self, val: Dict[str, Any]):
+        self.metadata_json = json.dumps(val or {})
+
+class ProfileTaste(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    profile_id: str = Field(index=True)
+    tag_type: str  # genre, actor, director
+    tag_value: str = Field(index=True)
+    score: float = Field(default=0.0)
+    last_updated: float
+
 class User(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     email: str = Field(index=True, unique=True)
@@ -355,6 +383,12 @@ class PlaybackSessionResponse(APIModel):
 class SubtitleInput(BaseModel):
     language: str
     url: str
+
+class TelemetryRequest(BaseModel):
+    event_type: str
+    movie_id: Optional[str] = None
+    tmdb_id: Optional[int] = None
+    metadata_json: Optional[Dict[str, Any]] = None
 
 class DownloadAddRequest(BaseModel):
     tmdb_id: int

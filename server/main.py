@@ -16,7 +16,12 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from db import init_db, engine
-from models import Movie, Episode, PlaybackSession, WatchlistItem, MovieResponse, PlaybackSessionResponse, DiscoverMovieResponse, EpisodeResponse, Profile, ProfileResponse, APIModel, DownloadTask
+from models import (
+    Movie, Episode, PlaybackSession, WatchlistItem, MovieResponse, 
+    PlaybackSessionResponse, DiscoverMovieResponse, EpisodeResponse, 
+    Profile, ProfileResponse, APIModel, DownloadTask, TelemetryRequest
+)
+from services.recommendation import process_telemetry_event, calculate_movie_recommendation_score, get_profile_preferences
 from config import settings
 from services.logger import logger
 from services.queue import queue_manager
@@ -347,8 +352,8 @@ async def serve_media_file(file_path: str, request: Request):
 # ----------------- Movies Catalog API -----------------
 
 @app.get("/api/movies", response_model=List[MovieResponse])
-async def get_movies(user = Depends(get_current_user)):
-    """Fetches all cataloged media assets with linked episode detail mappings."""
+async def get_movies(profile_id: Optional[str] = Query(None), user = Depends(get_current_user)):
+    """Fetches all cataloged media assets with linked episode detail mappings, optionally personalized."""
     async with AsyncSession(engine) as db:
         stmt = select(Movie)
         result = await db.exec(stmt)
@@ -362,9 +367,18 @@ async def get_movies(user = Depends(get_current_user)):
                 ep_result = await db.exec(ep_stmt)
                 episodes = ep_result.all()
             
-            results.append(MovieResponse.from_db(m, episodes))
+            results.append((m, MovieResponse.from_db(m, episodes)))
         
-        return results
+        if profile_id:
+            # Calculate score for each movie and sort descending
+            scored_results = []
+            for m, res in results:
+                score = await calculate_movie_recommendation_score(m, profile_id)
+                scored_results.append((score, res))
+            scored_results.sort(key=lambda x: x[0], reverse=True)
+            return [res for score, res in scored_results]
+            
+        return [res for m, res in results]
 
 @app.get("/api/movies/featured", response_model=Optional[MovieResponse])
 async def get_featured_movie(user = Depends(get_current_user)):
@@ -409,6 +423,12 @@ async def get_playback_tracking(profile_id: str, user = Depends(get_current_user
             for s in sessions
         ]
 
+@app.post("/api/telemetry")
+async def handle_telemetry(request: TelemetryRequest, profile_id: str = Query(...), user = Depends(get_current_user)):
+    """Receives generic tracking telemetry from the web UI."""
+    await process_telemetry_event(profile_id, request)
+    return {"status": "ok"}
+
 @app.post("/api/track")
 async def update_playback_tracking(request: Request, user = Depends(get_current_user)):
     """Receives 10-second playback tracker pulses from the VideoPlayer."""
@@ -450,7 +470,6 @@ async def update_playback_tracking(request: Request, user = Depends(get_current_
             session.duration_watched = int(duration_watched)
             session.completion_rate = float(completion_rate)
             session.updated_at = now_str
-            session.episode_id = episode_id
             session.is_finished = is_finished
             db.add(session)
         else:
@@ -468,7 +487,15 @@ async def update_playback_tracking(request: Request, user = Depends(get_current_
             
         await db.commit()
         
-    return {"status": "success", "updatedAt": now_str}
+    if is_finished:
+        req = TelemetryRequest(
+            event_type="playback_end",
+            movie_id=movie_id,
+            metadata_json={"completion_rate": completion_rate}
+        )
+        await process_telemetry_event(profile_id, req)
+        
+    return {"status": "ok"}
 
 # ----------------- Watchlist Management API -----------------
 
@@ -523,10 +550,10 @@ async def toggle_watchlist(req: WatchlistToggleRequest, user = Depends(get_curre
 
 
 @app.get("/api/discover", response_model=List[DiscoverMovieResponse])
-async def get_discover_movies(category: str = "action", type: str = "movie", user = Depends(get_current_user)):
+async def get_discover_movies(category: str = "action", type: str = "movie", profile_id: Optional[str] = Query(None), user = Depends(get_current_user)):
     """Fetches trending movies or series from TMDB for the discover rows."""
     from services.tmdb import tmdb_client
-    return await tmdb_client.discover_media(category, type)
+    return await tmdb_client.discover_media(category, type, profile_id)
 
 @app.get("/api/search", response_model=List[DiscoverMovieResponse])
 async def search_tmdb_movies(query: str, user = Depends(get_current_user)):

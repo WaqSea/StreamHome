@@ -12,6 +12,8 @@ import type { Episode, Movie } from "../../types/api";
 import { isPlayableMovie, tmdbIdFromMovie } from "../../utils/media";
 import { AnimatedState, CONTENT_REVEAL, CONTENT_STAGGER, MOTION_EASE, MOTION_TIMINGS, useAppMotion } from "../../motion/motionSystem";
 
+import { useTelemetry } from "../../hooks/useTelemetry";
+
 interface DetailsRouterProps {
   movie: Movie;
   onClose: () => void;
@@ -31,6 +33,7 @@ export function DetailsRouter({ movie, onClose, isWatchlisted, onWatchlistChange
   const [error, setError] = useState("");
   const [savingWatchlist, setSavingWatchlist] = useState(false);
   const { reduced } = useAppMotion();
+  const { trackEvent } = useTelemetry();
 
   useEffect(() => {
     if (movie.type !== "series") return;
@@ -61,7 +64,10 @@ export function DetailsRouter({ movie, onClose, isWatchlisted, onWatchlistChange
   };
   const updateWatchlist = async () => {
     setSavingWatchlist(true); setError("");
-    try { onWatchlistChange((await toggleWatchlist(profile.id, movie.id)).watchlist); }
+    try { 
+      onWatchlistChange((await toggleWatchlist(profile.id, movie.id)).watchlist); 
+      trackEvent({ event_type: isWatchlisted ? "watchlist_remove" : "watchlist_add", movie_id: movie.id });
+    }
     catch (requestError) { setError(requestError instanceof Error ? requestError.message : "Watchlist could not be updated."); }
     finally { setSavingWatchlist(false); }
   };
