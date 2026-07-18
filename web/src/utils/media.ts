@@ -64,6 +64,15 @@ export function isPlayableMovie(movie: Movie): boolean {
   return Boolean(movie.videoUrl);
 }
 
+export function mediaAvailability(movie: Movie): "available" | "processing" | "cached" {
+  if (movie.availability === "available" || movie.availability === "processing" || movie.availability === "cached") return movie.availability;
+  return isPlayableMovie(movie) ? "available" : "cached";
+}
+
+export function isAvailableMedia(movie: Movie): boolean {
+  return mediaAvailability(movie) === "available";
+}
+
 export function tmdbIdFromMovie(movie: Movie): number | null {
   const match = movie.id.match(/^(?:tv_|m_)(\d+)$/);
   return match ? Number(match[1]) : null;

@@ -1,9 +1,9 @@
 import { useCallback } from "react";
 import { sendTelemetryEvent, TelemetryEventPayload } from "../api/telemetry";
-import { useAuthStore } from "../stores/authStore";
+import { useProfileStore } from "../stores/profileStore";
 
 export function useTelemetry() {
-  const profileId = useAuthStore((state: any) => state.activeProfileId);
+  const profileId = useProfileStore((state) => state.activeProfile?.id);
 
   const trackEvent = useCallback(
     (payload: TelemetryEventPayload) => {

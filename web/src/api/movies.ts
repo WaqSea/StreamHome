@@ -19,7 +19,7 @@ function normalizeEpisode(raw: Partial<Episode>): Episode {
   };
 }
 
-function normalizeMovie(raw: Partial<Movie>): Movie {
+export function normalizeMovie(raw: Partial<Movie>): Movie {
   return {
     id: raw.id ?? "",
     title: raw.title ?? "",
@@ -41,12 +41,16 @@ function normalizeMovie(raw: Partial<Movie>): Movie {
     voteCount: raw.voteCount ?? 0,
     skipMarkers: raw.skipMarkers && typeof raw.skipMarkers === "object" ? raw.skipMarkers : {},
     episodes: Array.isArray(raw.episodes) ? raw.episodes.map(normalizeEpisode) : null,
+    source: raw.source,
+    availability: raw.availability,
+    recommendationScore: raw.recommendationScore,
+    recommendationReasons: Array.isArray(raw.recommendationReasons) ? raw.recommendationReasons : [],
   };
 }
 
-export async function getMovies(profileId?: string): Promise<Movie[]> {
+export async function getMovies(profileId?: string, signal?: AbortSignal): Promise<Movie[]> {
   const path = profileId ? `/api/movies?profile_id=${encodeURIComponent(profileId)}` : "/api/movies";
-  const response = await apiGet<Partial<Movie>[]>(path);
+  const response = await apiGet<Partial<Movie>[]>(path, { signal });
   return response.map(normalizeMovie);
 }
 
@@ -55,7 +59,7 @@ export async function getFeatured(): Promise<Movie | null> {
   return response ? normalizeMovie(response) : null;
 }
 
-export const search = (query: string) => apiGet<DiscoverMovie[]>(`/api/search?query=${encodeURIComponent(query)}`);
+export const search = (query: string, signal?: AbortSignal) => apiGet<DiscoverMovie[]>(`/api/search?query=${encodeURIComponent(query)}`, { signal });
 export const discover = (category: string, type: string) => apiGet<DiscoverMovie[]>(`/api/discover?category=${encodeURIComponent(category)}&type=${encodeURIComponent(type)}`);
 
 export async function getEpisodes(tmdbId: number | string): Promise<Episode[]> {

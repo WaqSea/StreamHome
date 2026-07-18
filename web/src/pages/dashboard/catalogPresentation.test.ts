@@ -1,89 +1,76 @@
 import { describe, expect, it } from "vitest";
-import type { Movie } from "../../types/api";
-import { ALL_RELEASES_CATEGORY, buildCatalogPresentation, categoryOptions, genreCategoryCards, groupMoviesByGenre, sortByReleaseYear, TOP_PICKS_LIMIT } from "./catalogPresentation";
+import type { Movie, RecommendationCategory, RecommendationFeed, RecommendationItem } from "../../types/api";
+import { buildCatalogPresentation, categoryOptions, genreCategoryCards, TOP_PICKS_LIMIT } from "./catalogPresentation";
 
-function movie(id: string, genres: string[], type: "movie" | "series" = "movie", releaseYear = 0): Movie {
-  return {
-    id, title: id, description: "", thumbnailUrl: "", bannerUrl: null, videoUrl: "",
-    genres, duration: "", releaseYear, rating: null, cast: [], director: null,
-    type, quality: "", languages: [], subtitles: [], voteAverage: 0,
-    voteCount: 0, skipMarkers: {},
-  };
+function movie(id: string, genres: string[], type: "movie" | "series" = "movie", availability = "available"): Movie {
+  return { id, title: id, description: "", thumbnailUrl: "", bannerUrl: null, videoUrl: availability === "available" ? `/media/${id}` : "", genres, duration: "", releaseYear: 2025, rating: null, cast: [], director: null, type, quality: "", languages: [], subtitles: [], voteAverage: 0, voteCount: 0, skipMarkers: {}, availability, recommendationReasons: [`Because ${id}`] };
 }
 
-describe("catalog presentation", () => {
-  it("groups server records by genre while preserving recommendation order", () => {
-    const first = movie("first", ["Action", "Drama"]);
-    const second = movie("second", ["Drama"]);
-    const third = movie("third", []);
-    expect(groupMoviesByGenre([first, second, third])).toEqual([
-      { genre: "Action", items: [first] },
-      { genre: "Drama", items: [first, second] },
-      { genre: "Uncategorized", items: [third] },
+function item(media: Movie, score = 1): RecommendationItem {
+  return { media, source: media.availability === "available" ? "server" : "tmdb_cache", availability: media.availability ?? "cached", score, reasons: media.recommendationReasons ?? [] };
+}
+
+const categories: RecommendationCategory[] = [
+  { value: "recommended", label: "Recommended", affinity: 0, serverCount: 2, cachedCount: 1 },
+  { value: "all", label: "All Releases", affinity: 0, serverCount: 2, cachedCount: 0 },
+  { value: "Drama", label: "Drama", affinity: 3, serverCount: 1, cachedCount: 1 },
+  { value: "Action", label: "Action", affinity: 2, serverCount: 1, cachedCount: 0 },
+];
+
+function feed(items: RecommendationItem[], category = "recommended", watchAgain: RecommendationItem[] = []): RecommendationFeed {
+  return { profileId: "1", scope: "home", category, generatedAt: 1, stale: false, total: items.length, offset: 0, limit: 48, categories, items, watchAgain };
+}
+
+describe("server-driven catalog presentation", () => {
+  it("preserves server category order and category counts", () => {
+    expect(categoryOptions(categories).map((option) => [option.label, option.count])).toEqual([
+      ["Recommended", 3], ["All Releases", 2], ["Drama", 2], ["Action", 1],
     ]);
   });
 
-  it("builds virtual options before sorted server genres", () => {
-    expect(categoryOptions([movie("one", ["Science Fiction", "Action"]), movie("two", ["Action"])]).map((option) => option.label)).toEqual(["Recommended", "All Releases", "Action", "Science Fiction"]);
-  });
-
-  it("builds real-genre category cards with ranked artwork representatives and counts", () => {
-    const firstAction = movie("first-action", ["Action"]);
-    const drama = movie("drama", ["Drama"]);
-    const secondAction = movie("second-action", ["Action"]);
-    const cards = genreCategoryCards([firstAction, drama, secondAction]);
-    expect(cards.map((card) => [card.label, card.count, card.representative.id])).toEqual([
-      ["Action", 2, "first-action"],
-      ["Drama", 1, "drama"],
+  it("uses the first ranked matching title as category artwork", () => {
+    const firstDrama = movie("first-drama", ["Drama"]);
+    const action = movie("action", ["Action"]);
+    const secondDrama = movie("second-drama", ["Drama"]);
+    expect(genreCategoryCards(categories, [firstDrama, action, secondDrama], []).map((card) => [card.label, card.count, card.representative.id])).toEqual([
+      ["Drama", 2, "first-drama"], ["Action", 1, "action"],
     ]);
-    expect(cards.some((card) => card.value === "recommended" || card.value === "all")).toBe(false);
   });
 
-  it("sorts All Releases by year with stable ties and missing years last", () => {
-    const older = movie("older", [], "movie", 2020);
-    const firstTie = movie("first-tie", [], "movie", 2025);
-    const missing = movie("missing", [], "movie", 0);
-    const secondTie = movie("second-tie", [], "movie", 2025);
-    expect(sortByReleaseYear([older, firstTie, missing, secondTie]).map((item) => item.id)).toEqual(["first-tie", "second-tie", "older", "missing"]);
-  });
-
-  it("uses backend order for Top Picks and recommended genre rails", () => {
+  it("preserves recommendation order for billboard, Top Picks, and genre rails", () => {
     const ranked = Array.from({ length: TOP_PICKS_LIMIT + 3 }, (_, index) => movie(`rank-${index}`, [index % 2 ? "Drama" : "Action"]));
-    const model = buildCatalogPresentation({ movies: ranked, continueWatching: [], view: "movies" });
-    expect(model.mode).toBe("recommended");
+    const model = buildCatalogPresentation({ feed: feed(ranked.map((entry, index) => item(entry, 100 - index))), fallbackMovies: ranked, continueWatching: [], view: "movies" });
     expect(model.billboardItems).toEqual(ranked);
-    expect(model.sections[0].title).toBe("Top Picks For You");
-    expect(model.sections[0].items).toEqual(ranked.slice(0, TOP_PICKS_LIMIT));
-    expect(model.sections.find((item) => item.title === "Action")?.items.map((item) => item.id)).toEqual(ranked.filter((_, index) => index % 2 === 0).map((item) => item.id));
+    expect(model.sections.find((section) => section.id === "top-picks")?.items).toEqual(ranked.slice(0, TOP_PICKS_LIMIT));
+    expect(model.sections.find((section) => section.title === "Action")?.items).toEqual(ranked.filter((_, index) => index % 2 === 0));
   });
 
-  it("combines Home All Releases and restricts type-specific views", () => {
-    const film = movie("film", ["Action"], "movie", 2024);
-    const show = movie("show", ["Action"], "series", 2025);
-    const home = buildCatalogPresentation({ movies: [film, show], continueWatching: [], view: "home", category: ALL_RELEASES_CATEGORY });
-    const movies = buildCatalogPresentation({ movies: [film, show], continueWatching: [], view: "movies", category: ALL_RELEASES_CATEGORY });
-    expect(home.gridItems).toEqual([show, film]);
-    expect(movies.gridItems).toEqual([film]);
-    expect(home.genreCards[0].count).toBe(2);
-    expect(movies.genreCards[0].count).toBe(1);
+  it("places Watch Again before Top Picks without sorting or reasons", () => {
+    const ranked = [movie("ranked", ["Drama"])];
+    const recent = movie("recent", ["Drama"]);
+    const older = movie("older", ["Action"]);
+    const model = buildCatalogPresentation({ feed: feed(ranked.map(item), "recommended", [item(recent, 1), item(older, 99)]), fallbackMovies: ranked, continueWatching: [], view: "home" });
+    const watchAgain = model.sections.find((section) => section.id === "watch-again")!;
+    expect(model.sections.map((section) => section.id).indexOf("watch-again")).toBeLessThan(model.sections.map((section) => section.id).indexOf("top-picks"));
+    expect(watchAgain.items).toEqual([recent, older]);
+    expect(watchAgain.showReasons).toBe(false);
   });
 
-  it("splits a Home genre into Movies and Series but uses a grid in archives", () => {
-    const film = movie("film", ["Action"], "movie");
+  it("does not show Watch Again outside Recommended mode and never re-sorts All Releases", () => {
+    const serverOrder = [movie("older", ["Drama"]), movie("newer", ["Drama"])];
+    serverOrder[0].releaseYear = 1990; serverOrder[1].releaseYear = 2026;
+    const all = buildCatalogPresentation({ feed: feed(serverOrder.map(item), "all", [item(serverOrder[1])]), fallbackMovies: serverOrder, continueWatching: [], view: "movies" });
+    expect(all.gridItems).toEqual(serverOrder);
+    expect(all.sections.some((section) => section.id === "watch-again")).toBe(false);
+  });
+
+  it("splits a Home genre by media type while archives keep one ordered grid", () => {
+    const film = movie("film", ["Action"]);
     const show = movie("show", ["Action"], "series");
-    const drama = movie("drama", ["Drama"], "movie");
-    const home = buildCatalogPresentation({ movies: [film, show, drama], continueWatching: [], view: "home", category: "action" });
-    const archive = buildCatalogPresentation({ movies: [film, show, drama], continueWatching: [], view: "movies", category: "Action" });
-    expect(home.sections.map((item) => [item.title, item.items])).toEqual([["Movies", [film]], ["Series", [show]]]);
+    const genreFeed = feed([item(film), item(show)], "Action");
+    const home = buildCatalogPresentation({ feed: genreFeed, fallbackMovies: [film, show], continueWatching: [], view: "home" });
+    const archive = buildCatalogPresentation({ feed: { ...genreFeed, scope: "movies", items: [item(film)], total: 1 }, fallbackMovies: [film], continueWatching: [], view: "movies" });
+    expect(home.sections.map((section) => [section.title, section.items])).toEqual([["Movies", [film]], ["Series", [show]]]);
     expect(archive.gridItems).toEqual([film]);
-    expect(archive.billboardItems).toEqual([film]);
-  });
-
-  it("keeps unknown deep-linked genres truthful and empty", () => {
-    const model = buildCatalogPresentation({ movies: [movie("film", ["Action"])], continueWatching: [], view: "home", category: "Unknown" });
-    expect(model.mode).toBe("genre");
-    expect(model.activeLabel).toBe("Unknown");
-    expect(model.billboardItems).toEqual([]);
-    expect(model.sections).toEqual([]);
   });
 });

@@ -1,19 +1,15 @@
 import type { CatalogView } from "../../navigation/queryState";
-import type { Movie } from "../../types/api";
+import type { Movie, RecommendationCategory, RecommendationFeed } from "../../types/api";
 
 export const RECOMMENDED_CATEGORY = "recommended";
 export const ALL_RELEASES_CATEGORY = "all";
 export const TOP_PICKS_LIMIT = 12;
 
-export interface GenreCollection {
-  genre: string;
-  items: Movie[];
-}
-
 export interface CategoryOption {
   value: string;
   label: string;
   kind: "virtual" | "genre";
+  count: number;
 }
 
 export interface GenreCategoryCard {
@@ -28,6 +24,7 @@ export interface CatalogSection {
   label: string;
   title: string;
   items: Movie[];
+  showReasons: boolean;
 }
 
 export interface CatalogPresentationModel {
@@ -40,110 +37,97 @@ export interface CatalogPresentationModel {
   sections: CatalogSection[];
   gridItems: Movie[];
   sourceItems: Movie[];
+  total: number;
 }
 
 const categoryKey = (value: string) => value.trim().toLocaleLowerCase();
+const isVirtual = (value: string) => value === RECOMMENDED_CATEGORY || value === ALL_RELEASES_CATEGORY;
 
-export function groupMoviesByGenre(items: Movie[], selectedGenre?: string): GenreCollection[] {
-  const collections = new Map<string, Movie[]>();
-  const selected = selectedGenre ? categoryKey(selectedGenre) : undefined;
-
-  for (const movie of items) {
-    const genres = movie.genres.length ? movie.genres : ["Uncategorized"];
-    for (const genre of genres) {
-      if (selected && categoryKey(genre) !== selected) continue;
-      const existing = collections.get(genre) ?? [];
-      existing.push(movie);
-      collections.set(genre, existing);
-    }
-  }
-
-  return Array.from(collections, ([genre, collectionItems]) => ({ genre, items: collectionItems }));
+export function categoryOptions(categories: RecommendationCategory[]): CategoryOption[] {
+  return categories.map((category) => ({
+    value: category.value,
+    label: category.label,
+    kind: isVirtual(categoryKey(category.value)) ? "virtual" : "genre",
+    count: category.serverCount + category.cachedCount,
+  }));
 }
 
-export function sortByReleaseYear(items: Movie[]): Movie[] {
-  return items.map((movie, index) => ({ movie, index })).sort((left, right) => {
-    const yearDifference = (right.movie.releaseYear || 0) - (left.movie.releaseYear || 0);
-    return yearDifference || left.index - right.index;
-  }).map(({ movie }) => movie);
-}
-
-export function categoryOptions(items: Movie[]): CategoryOption[] {
-  const genres = Array.from(new Set(items.flatMap((movie) => movie.genres).filter(Boolean))).sort((left, right) => left.localeCompare(right));
-  return [
-    { value: RECOMMENDED_CATEGORY, label: "Recommended", kind: "virtual" },
-    { value: ALL_RELEASES_CATEGORY, label: "All Releases", kind: "virtual" },
-    ...genres.map((genre) => ({ value: genre, label: genre, kind: "genre" as const })),
-  ];
-}
-
-export function genreCategoryCards(items: Movie[]): GenreCategoryCard[] {
-  return categoryOptions(items)
+export function genreCategoryCards(categories: RecommendationCategory[], ranked: Movie[], fallback: Movie[]): GenreCategoryCard[] {
+  const candidates = [...ranked, ...fallback.filter((movie) => !ranked.some((rankedMovie) => rankedMovie.id === movie.id))];
+  return categoryOptions(categories)
     .filter((option) => option.kind === "genre")
-    .map((option) => {
-      const matching = items.filter((movie) => movie.genres.some((genre) => categoryKey(genre) === categoryKey(option.value)));
-      return { value: option.value, label: option.label, count: matching.length, representative: matching[0] };
-    })
+    .map((option) => ({
+      value: option.value,
+      label: option.label,
+      count: option.count,
+      representative: candidates.find((movie) => movie.genres.some((genre) => categoryKey(genre) === categoryKey(option.value))),
+    }))
     .filter((card): card is GenreCategoryCard => Boolean(card.representative));
 }
 
-function sourceForView(movies: Movie[], view: CatalogView): Movie[] {
-  if (view === "movies") return movies.filter((movie) => movie.type === "movie");
-  if (view === "series") return movies.filter((movie) => movie.type === "series");
-  return movies;
+function section(id: string, label: string, title: string, items: Movie[], showReasons: boolean): CatalogSection | null {
+  return items.length ? { id, label, title, items, showReasons } : null;
 }
 
-function section(id: string, label: string, title: string, items: Movie[]): CatalogSection | null {
-  return items.length ? { id, label, title, items } : null;
-}
-
-function compactSections(items: Array<CatalogSection | null>): CatalogSection[] {
+function compact(items: Array<CatalogSection | null>): CatalogSection[] {
   return items.filter((item): item is CatalogSection => item !== null);
 }
 
+function personalizedGenreSections(categories: CategoryOption[], items: Movie[], view: CatalogView): CatalogSection[] {
+  return categories.filter((category) => category.kind === "genre").map((category) => {
+    const matching = items.filter((movie) => movie.genres.some((genre) => categoryKey(genre) === categoryKey(category.value)));
+    return section(`genre-${categoryKey(category.value)}`, `${view.toUpperCase()} / PERSONALIZED GENRE`, category.label, matching, true);
+  }).filter((item): item is CatalogSection => item !== null);
+}
+
 export function buildCatalogPresentation({
-  movies,
+  feed,
+  fallbackMovies,
   continueWatching,
   view,
-  category,
 }: {
-  movies: Movie[];
+  feed: RecommendationFeed;
+  fallbackMovies: Movie[];
   continueWatching: Movie[];
   view: CatalogView;
-  category?: string;
 }): CatalogPresentationModel {
-  const sourceItems = sourceForView(movies, view);
-  const categories = categoryOptions(sourceItems);
-  const genreCards = genreCategoryCards(sourceItems);
-  const requested = category?.trim() || RECOMMENDED_CATEGORY;
+  const sourceItems = feed.items.map((item) => item.media);
+  const watchAgain = feed.watchAgain.map((item) => item.media);
+  const categories = categoryOptions(feed.categories);
+  const genreCards = genreCategoryCards(feed.categories, sourceItems, fallbackMovies);
+  const requested = feed.category?.trim() || RECOMMENDED_CATEGORY;
   const key = categoryKey(requested);
+  const active = categories.find((category) => categoryKey(category.value) === key);
+  const common = {
+    activeCategory: active?.value ?? requested,
+    activeLabel: active?.label ?? requested,
+    categories,
+    genreCards,
+    billboardItems: sourceItems,
+    sourceItems,
+    total: feed.total,
+  };
 
-  if (key === ALL_RELEASES_CATEGORY) {
-    const gridItems = sortByReleaseYear(sourceItems);
-    return { mode: "all", activeCategory: ALL_RELEASES_CATEGORY, activeLabel: "All Releases", categories, genreCards, billboardItems: gridItems, sections: [], gridItems, sourceItems };
-  }
+  if (key === ALL_RELEASES_CATEGORY) return { ...common, mode: "all", gridItems: sourceItems, sections: [] };
 
   if (key !== RECOMMENDED_CATEGORY) {
-    const matchingGenre = categories.find((option) => option.kind === "genre" && categoryKey(option.value) === key);
-    const activeCategory = matchingGenre?.value ?? requested;
-    const activeLabel = matchingGenre?.label ?? requested;
-    const matching = sourceItems.filter((movie) => movie.genres.some((genre) => categoryKey(genre) === key));
-    const sections = view === "home" ? compactSections([
-      section("genre-movies", "GENRE / MOVIES", "Movies", matching.filter((movie) => movie.type === "movie")),
-      section("genre-series", "GENRE / SERIES", "Series", matching.filter((movie) => movie.type === "series")),
+    const sections = view === "home" ? compact([
+      section("genre-movies", "GENRE / MOVIES", "Movies", sourceItems.filter((movie) => movie.type === "movie"), true),
+      section("genre-series", "GENRE / SERIES", "Series", sourceItems.filter((movie) => movie.type === "series"), true),
     ]) : [];
-    return { mode: "genre", activeCategory, activeLabel, categories, genreCards, billboardItems: matching, sections, gridItems: view === "home" ? [] : matching, sourceItems };
+    return { ...common, mode: "genre", sections, gridItems: view === "home" ? [] : sourceItems };
   }
 
   const topPicks = sourceItems.slice(0, TOP_PICKS_LIMIT);
-  const sections = view === "home" ? compactSections([
-    section("continue-watching", "RESUME INDEX", "Continue watching", continueWatching),
-    section("top-picks", "PERSONALIZED / PROFILE", "Top Picks For You", topPicks),
-    section("recommended-movies", "FEATURE ARCHIVE", "Movies", sourceItems.filter((movie) => movie.type === "movie")),
-    section("recommended-series", "EPISODIC ARCHIVE", "Series", sourceItems.filter((movie) => movie.type === "series")),
-  ]) : compactSections([
-    section("top-picks", "PERSONALIZED / PROFILE", "Top Picks For You", topPicks),
-    ...groupMoviesByGenre(sourceItems).map((collection) => section(`genre-${categoryKey(collection.genre)}`, `${view.toUpperCase()} / GENRE`, collection.genre, collection.items)),
+  const leading = view === "home" ? compact([
+    section("continue-watching", "RESUME INDEX", "Continue Watching", continueWatching, false),
+    section("watch-again", "RECENT REWATCH HISTORY", "Watch Again", watchAgain, false),
+    section("top-picks", "PERSONALIZED / PROFILE", "Top Picks For You", topPicks, true),
+    section("recommended-movies", "PERSONALIZED MOVIES", "Movies For You", sourceItems.filter((movie) => movie.type === "movie"), true),
+    section("recommended-series", "PERSONALIZED SERIES", "Series For You", sourceItems.filter((movie) => movie.type === "series"), true),
+  ]) : compact([
+    section("watch-again", "RECENT REWATCH HISTORY", "Watch Again", watchAgain, false),
+    section("top-picks", "PERSONALIZED / PROFILE", "Top Picks For You", topPicks, true),
   ]);
-  return { mode: "recommended", activeCategory: RECOMMENDED_CATEGORY, activeLabel: "Recommended", categories, genreCards, billboardItems: sourceItems, sections, gridItems: [], sourceItems };
+  return { ...common, mode: "recommended", sections: [...leading, ...personalizedGenreSections(categories, sourceItems, view)], gridItems: [] };
 }

@@ -18,9 +18,9 @@ export function DashboardRouter() {
   useEffect(() => syncFromProfile(activeProfile), [activeProfile, syncFromProfile]);
   useEffect(() => {
     if (controller.loading || !query.genre || (query.view !== "movies" && query.view !== "series")) return;
-    const valid = controller.genres.some((genre) => genre.toLocaleLowerCase() === query.genre?.toLocaleLowerCase());
+    const valid = controller.categories.some((category) => category.toLocaleLowerCase() === query.genre?.toLocaleLowerCase());
     if (!valid) navigate(appUrl(activeProfile.id, query.view), { replace: true });
-  }, [activeProfile.id, controller.genres, controller.loading, navigate, query.genre, query.view]);
+  }, [activeProfile.id, controller.categories, controller.loading, navigate, query.genre, query.view]);
 
   const presentation = getThemeDefinition(activeTheme);
   const Application = presentation.Application;

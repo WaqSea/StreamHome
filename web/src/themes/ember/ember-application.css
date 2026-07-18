@@ -189,3 +189,25 @@
   .ember-status i { animation: none; }
   .ember-hero__art > img { animation: none; }
 }
+
+/* Personalized feed signal presentation */
+.ember-media-card__art > .media-availability { position: absolute; z-index: 3; top: 10px; left: 10px; max-width: calc(100% - 20px); border-radius: 0; border-color: rgba(255,95,31,.42); background: rgba(20,8,5,.82); color: #ffd7ca; box-shadow: inset 2px 0 #ff5f1f,0 0 16px rgba(255,95,31,.14); }
+.ember-media-card__copy .recommendation-reason { color: #ff9c79; font-size: 7px; letter-spacing: .07em; }
+.ember-hero__copy > .media-availability { margin-top: 13px; border-radius: 0; border-color: rgba(255,95,31,.42); background: rgba(20,8,5,.72); color: #ffd7ca; box-shadow: inset 2px 0 #ff5f1f; }
+.ember-hero__copy > .recommendation-reason { width: fit-content; margin-top: 9px; border-left: 2px solid #ff5f1f; color: #ffb59c; padding-left: 8px; }
+.ember-feed-status { width: min(1430px,calc(100% - max(48px,8vw))); min-height: 42px; display: flex; align-items: center; gap: 10px; margin: 24px auto 0; border: 1px solid rgba(255,95,31,.24); background: rgba(27,12,8,.62); color: #bd8b7d; padding: 9px 12px; font: 600 8px/1.4 var(--font-mono); letter-spacing: .09em; text-transform: uppercase; }
+.ember-feed-status > i { width: 7px; height: 7px; border: 1px solid #ff7e4e; border-top-color: transparent; border-radius: 50%; animation: ember-spin 1s linear infinite; }
+.ember-feed-status[data-state="error"] { border-color: rgba(255,180,171,.5); color: #ffb4ab; }
+.ember-feed-status button { margin-left: auto; border: 1px solid currentColor; background: transparent; color: inherit; padding: 8px 11px; font: inherit; text-transform: uppercase; }
+.ember-pagination { display: flex; justify-content: center; padding: 18px max(24px,4vw) 82px; }
+.ember-load-more,.ember-retry { min-height: 42px; border: 1px solid #ff5f1f; border-radius: 0; background: rgba(255,95,31,.08); color: #fff4ef; padding: 0 20px; font: 650 8px/1 var(--font-mono); letter-spacing: .12em; text-transform: uppercase; box-shadow: 0 0 18px rgba(255,95,31,.11); }
+.ember-state-panel .ember-retry { margin-top: 24px; }
+
+@media (max-width: 720px) {
+  .ember-feed-status { width: calc(100% - 36px); align-items: flex-start; flex-wrap: wrap; }
+  .ember-feed-status button,.ember-load-more { width: 100%; margin-left: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ember-feed-status > i { animation: none; }
+}

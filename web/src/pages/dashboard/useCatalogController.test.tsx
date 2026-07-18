@@ -1,0 +1,87 @@
+import { act, renderHook, waitFor } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { AppQueryState } from "../../navigation/queryState";
+import type { Movie, Profile, RecommendationFeed } from "../../types/api";
+import { useCatalogController } from "./useCatalogController";
+
+const mocks = vi.hoisted(() => ({
+  getMovies: vi.fn(), getPlaybackSessions: vi.fn(), getWatchlist: vi.fn(), getRecommendations: vi.fn(), search: vi.fn(),
+}));
+
+vi.mock("../../api/movies", () => ({ getMovies: mocks.getMovies, search: mocks.search }));
+vi.mock("../../api/playback", () => ({ getPlaybackSessions: mocks.getPlaybackSessions }));
+vi.mock("../../api/watchlist", () => ({ getWatchlist: mocks.getWatchlist }));
+vi.mock("../../api/recommendations", () => ({ getRecommendations: mocks.getRecommendations }));
+
+const profile: Profile = { id: "profile one", name: "Viewer", avatarColor: "", theme: "ember", pinEnabled: false, pin: null };
+
+function movie(id: string): Movie {
+  return { id, title: id, description: "", thumbnailUrl: "", bannerUrl: null, videoUrl: `/media/${id}`, genres: ["Drama"], duration: "", releaseYear: 2025, rating: null, cast: [], director: null, type: "movie", quality: "", languages: [], subtitles: [], voteAverage: 0, voteCount: 0, skipMarkers: {}, availability: "available" };
+}
+
+function feed(category: string, ids: string[], total = ids.length, watchAgain: string[] = []): RecommendationFeed {
+  return {
+    profileId: profile.id, scope: "home", category, generatedAt: 1, stale: false, total, offset: 0, limit: 48,
+    categories: [
+      { value: "recommended", label: "Recommended", affinity: 0, serverCount: 3, cachedCount: 0 },
+      { value: "all", label: "All Releases", affinity: 0, serverCount: 3, cachedCount: 0 },
+      { value: "Drama", label: "Drama", affinity: 1, serverCount: 3, cachedCount: 0 },
+    ],
+    items: ids.map((id, index) => ({ media: movie(id), source: "server", availability: "available", score: 100 - index, reasons: [] })),
+    watchAgain: watchAgain.map((id, index) => ({ media: movie(id), source: "server", availability: "available", score: index, reasons: [] })),
+  };
+}
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  mocks.getMovies.mockResolvedValue([]);
+  mocks.getPlaybackSessions.mockResolvedValue([]);
+  mocks.getWatchlist.mockResolvedValue([]);
+  mocks.search.mockResolvedValue([]);
+});
+
+describe("useCatalogController recommendations", () => {
+  it("requests the active scope/category and keeps Watch Again in server order", async () => {
+    mocks.getRecommendations.mockResolvedValue(feed("Drama", ["ranked"], 1, ["recent", "older"]));
+    const query: AppQueryState = { profile: profile.id, view: "movies", genre: "Drama" };
+    const { result } = renderHook(() => useCatalogController(profile, query));
+    await waitFor(() => expect(result.current.recommendation?.category).toBe("Drama"));
+    expect(mocks.getRecommendations).toHaveBeenCalledWith(expect.objectContaining({ profileId: profile.id, scope: "movies", category: "Drama", limit: 48, offset: 0 }));
+    expect(result.current.recommendation?.watchAgain.map((entry) => entry.media.id)).toEqual(["recent", "older"]);
+  });
+
+  it("aborts an obsolete category request and ignores its late response", async () => {
+    let resolveDrama!: (value: RecommendationFeed) => void;
+    let resolveAction!: (value: RecommendationFeed) => void;
+    const drama = new Promise<RecommendationFeed>((resolve) => { resolveDrama = resolve; });
+    const action = new Promise<RecommendationFeed>((resolve) => { resolveAction = resolve; });
+    mocks.getRecommendations.mockImplementation(({ category }: { category: string }) => category === "Drama" ? drama : action);
+    const initial: AppQueryState = { profile: profile.id, view: "home", genre: "Drama" };
+    const { result, rerender } = renderHook(({ query }) => useCatalogController(profile, query), { initialProps: { query: initial } });
+    await waitFor(() => expect(mocks.getRecommendations).toHaveBeenCalledTimes(1));
+    const firstSignal = mocks.getRecommendations.mock.calls[0][0].signal as AbortSignal;
+    rerender({ query: { ...initial, genre: "Action" } });
+    await waitFor(() => expect(mocks.getRecommendations).toHaveBeenCalledTimes(2));
+    expect(firstSignal.aborted).toBe(true);
+    await act(async () => { resolveAction(feed("Action", ["action"])); });
+    await waitFor(() => expect(result.current.recommendation?.items[0].media.id).toBe("action"));
+    await act(async () => { resolveDrama(feed("Drama", ["late-drama"])); });
+    expect(result.current.recommendation?.items[0].media.id).toBe("action");
+  });
+
+  it("appends pages in server order and refetches after returning from playback", async () => {
+    mocks.getRecommendations
+      .mockResolvedValueOnce(feed("all", ["first"], 3))
+      .mockResolvedValueOnce({ ...feed("all", ["second", "third"], 3), offset: 1 })
+      .mockResolvedValueOnce(feed("all", ["third", "first", "second"], 3));
+    const initial: AppQueryState = { profile: profile.id, view: "home", genre: "all" };
+    const { result, rerender } = renderHook(({ query }) => useCatalogController(profile, query), { initialProps: { query: initial } });
+    await waitFor(() => expect(result.current.recommendation?.items.map((entry) => entry.media.id)).toEqual(["first"]));
+    await act(async () => { await result.current.loadMoreRecommendations(); });
+    expect(result.current.recommendation?.items.map((entry) => entry.media.id)).toEqual(["first", "second", "third"]);
+    expect(mocks.getRecommendations.mock.calls[1][0]).toEqual(expect.objectContaining({ offset: 1, category: "all" }));
+    rerender({ query: { profile: profile.id, view: "watch", media: "first" } });
+    rerender({ query: initial });
+    await waitFor(() => expect(mocks.getRecommendations).toHaveBeenCalledTimes(3));
+  });
+});

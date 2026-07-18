@@ -17,6 +17,11 @@ describe("category renderer parity", () => {
       expect(source).toContain("model.gridItems");
       expect(source).toContain("model.sections.map");
       expect(source).toContain("preservedCatalogCategory");
+      expect(source).toContain("collection.showReasons");
+      expect(source).toContain("recommendationHasMore");
+      expect(source).toContain("loadMoreRecommendations");
+      expect(source).toContain("recommendationError");
+      expect(source).toContain("AvailabilityBadge");
     }
   });
 
@@ -32,6 +37,13 @@ describe("category renderer parity", () => {
     expect(application).toContain(".category-filter::before,.category-filter::after");
     expect(application).toContain(".category-catalog-grid");
     expect(ember).toContain(".ember-category-grid");
+    expect(application).toContain(".catalog-feed-status");
+    expect(application).toContain(".catalog-load-more");
+    expect(application).toContain("data-card-theme=\"glass\"");
+    expect(application).toContain("data-card-theme=\"poster\"");
+    expect(application).toContain("data-card-theme=\"module\"");
+    expect(ember).toContain(".ember-feed-status");
+    expect(ember).toContain(".ember-load-more");
     for (const profile of ["terminal", "editorial", "cinematic", "workspace"]) expect(interactions).toContain(`data-interaction=\"${profile}\"] .category-filter button`);
     for (const profile of ["terminal", "editorial", "cinematic", "workspace"]) expect(interactions).toContain(`data-interaction=\"${profile}\"] .genre-category-gallery__grid > button:hover`);
   });

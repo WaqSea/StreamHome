@@ -35,7 +35,9 @@
   .profile-editor__actions button,.profile-editor__state button,
   .profile-gallery__state button,.profile-dialog__actions button,
   .profile-theme-picker button,.profile-delete-zone button,
-  .player-complete-panel button,.player-controls button
+  .player-complete-panel button,.player-controls button,
+  .catalog-load-more,.catalog-retry,.catalog-feed-status button,
+  .ember-load-more,.ember-retry,.ember-feed-status button
 ) {
   transform: translate3d(0,0,0);
   transition-property: transform,box-shadow,border-color,background-color,color,filter,opacity;
@@ -116,7 +118,8 @@
     .profile-editor__actions button,.profile-editor__state button,
     .profile-gallery__state button,.profile-dialog__actions button,
     .profile-theme-picker button,.profile-delete-zone button,
-    .player-complete-panel button
+    .player-complete-panel button,.catalog-load-more,.catalog-retry,.catalog-feed-status button,
+    .ember-load-more,.ember-retry,.ember-feed-status button
   ):not(:disabled):hover {
     transform: translate3d(0,-2px,0);
     border-color: var(--interaction-border);
@@ -129,7 +132,9 @@
     .feature-action,.ember-action,.details-close,.season-tabs button,
     .genre-filter button,.ember-filters button,.category-filter button,.search-page-form button,
     .ember-search__form button,.admin-nav button,.profile-editor__actions button,
-    .profile-dialog__actions button,.player-complete-panel button
+    .profile-dialog__actions button,.player-complete-panel button,
+    .catalog-load-more,.catalog-retry,.catalog-feed-status button,
+    .ember-load-more,.ember-retry,.ember-feed-status button
   ):not(:disabled):active { transform: translate3d(0,1px,0) scale(.985); transition-duration: var(--interaction-press); }
   .interaction-button:hover::after,.login-primary-action:hover::after { opacity: 1; transform: translateX(110%); }
   .interaction-chip:hover { background: var(--interaction-fill); }
@@ -225,7 +230,8 @@
   .season-tabs button,.genre-filter button,.ember-filters button,.category-filter button,.admin-nav button,
   .genre-category-gallery__grid > button,
   .profile-editor button,.profile-gallery button,.player-controls button,
-  .player-complete-panel button
+  .player-complete-panel button,.catalog-load-more,.catalog-retry,.catalog-feed-status button,
+  .ember-load-more,.ember-retry,.ember-feed-status button
 ):focus-visible {
   border-color: var(--interaction-border);
   box-shadow: var(--interaction-shadow);

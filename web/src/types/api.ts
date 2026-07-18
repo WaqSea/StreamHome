@@ -112,6 +112,43 @@ export interface Movie {
   voteCount: number;
   skipMarkers: Record<string, unknown>;
   episodes?: Episode[] | null;
+  source?: MediaSource;
+  availability?: MediaAvailability;
+  recommendationScore?: number;
+  recommendationReasons?: string[];
+}
+
+export type MediaSource = "server" | "tmdb_cache" | string;
+export type MediaAvailability = "available" | "processing" | "cached" | string;
+
+export interface RecommendationCategory {
+  value: string;
+  label: string;
+  affinity: number;
+  serverCount: number;
+  cachedCount: number;
+}
+
+export interface RecommendationItem {
+  media: Movie;
+  source: MediaSource;
+  availability: MediaAvailability;
+  score: number;
+  reasons: string[];
+}
+
+export interface RecommendationFeed {
+  profileId: string;
+  scope: "home" | "movies" | "series";
+  category: string;
+  generatedAt: number;
+  stale: boolean;
+  total: number;
+  offset: number;
+  limit: number;
+  categories: RecommendationCategory[];
+  items: RecommendationItem[];
+  watchAgain: RecommendationItem[];
 }
 
 export interface PlaybackSession {
@@ -171,4 +208,6 @@ export interface DiscoverMovie {
   director: string | null;
   cast: string[];
   type: "movie" | "series";
+  source?: MediaSource;
+  availability?: MediaAvailability;
 }

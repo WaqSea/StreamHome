@@ -11,9 +11,9 @@ describe("category filter rail", () => {
     Object.defineProperty(window, "matchMedia", { configurable: true, value: matchMedia });
     const onSelect = vi.fn();
     render(<MotionProvider><CategoryFilterRail variant="shared" active="all" onSelect={onSelect} options={[
-      { value: "recommended", label: "Recommended", kind: "virtual" },
-      { value: "all", label: "All Releases", kind: "virtual" },
-      { value: "Action", label: "Action", kind: "genre" },
+      { value: "recommended", label: "Recommended", kind: "virtual", count: 3 },
+      { value: "all", label: "All Releases", kind: "virtual", count: 2 },
+      { value: "Action", label: "Action", kind: "genre", count: 1 },
     ]} /></MotionProvider>);
     expect(screen.getByRole("navigation", { name: "Catalog categories" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "All Releases", pressed: true })).toBeTruthy();
