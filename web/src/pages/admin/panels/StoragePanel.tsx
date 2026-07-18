@@ -12,27 +12,89 @@ export function StoragePanel() {
   const [settings, setSettings] = useState<SystemSettings | null>(null);
   const [draft, setDraft] = useState<SystemSettings | null>(null);
   const [sudoOpen, setSudoOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
 
-  useEffect(() => { getSettings().then((data) => { setSettings(data); setDraft(data); }).catch((requestError: unknown) => setError(requestError instanceof Error ? requestError.message : "Settings could not be loaded.")); }, []);
+  const loadSettings = () => {
+    setLoading(true);
+    setError("");
+    getSettings()
+      .then((data) => {
+        setSettings(data);
+        setDraft(data);
+      })
+      .catch((requestError: unknown) => setError(requestError instanceof Error ? requestError.message : "Settings could not be loaded."))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => { loadSettings(); }, []);
 
   const save = async () => {
     if (!draft) return;
+    setError("");
     const saved = await updateSettings(draft);
-    setSettings(saved); setDraft(saved); setMessage("Server settings saved."); setSudoOpen(false);
+    setSettings(saved);
+    setDraft(saved);
+    setMessage("Server settings saved.");
+    setSudoOpen(false);
   };
 
-  if (!draft) return <section className="p-8"><h1 className="text-3xl font-semibold">Storage and HEVC</h1><p className="mt-6 text-[var(--text-error)]">{error || "Loading server settings…"}</p></section>;
+  const header = (
+    <header className="admin-panel__header">
+      <p>SERVER / STORAGE</p>
+      <h1>Storage and HEVC</h1>
+      <span>Configure the server storage target and media compression policy.</span>
+    </header>
+  );
+
+  if (!draft) {
+    return (
+      <section className="admin-panel admin-panel--storage">
+        {header}
+        <GlassPane className="admin-state-card" spotlight={false}>
+          <p>{loading ? "CONTACTING SERVER" : "SETTINGS UNAVAILABLE"}</p>
+          <h2>{loading ? "Loading server settings…" : "Storage settings could not be loaded."}</h2>
+          {error && <span role="alert">{error}</span>}
+          {!loading && <Button variant="secondary" onClick={loadSettings}>Try again</Button>}
+        </GlassPane>
+      </section>
+    );
+  }
+
   const dirty = JSON.stringify(settings) !== JSON.stringify(draft);
   return (
-    <section className="mx-auto max-w-4xl p-8"><h1 className="text-3xl font-semibold">Storage and HEVC</h1><p className="mt-2 text-[var(--text-muted)]">Settings loaded directly from the server.</p>
-      <GlassPane className="mt-8 flex flex-col gap-6 p-7" spotlight={false}>
-        <label className="flex flex-col gap-2"><span>Storage engine</span><select className="rounded-[var(--radius)] border border-[var(--glass-border)] bg-[var(--bg-surface-container-lowest)] px-4 py-3" value={draft.storageEngine} onChange={(event) => setDraft({ ...draft, storageEngine: event.target.value as SystemSettings["storageEngine"] })}><option value="LOCAL">Local</option><option value="CLOUD">Cloud</option></select></label>
-        <Input label="Rclone remote path" value={draft.rcloneRemotePath} onChange={(event) => setDraft({ ...draft, rcloneRemotePath: event.target.value })} disabled={draft.storageEngine !== "CLOUD"} />
-        <label className="flex flex-col gap-2"><span>HEVC compression</span><select className="rounded-[var(--radius)] border border-[var(--glass-border)] bg-[var(--bg-surface-container-lowest)] px-4 py-3" value={draft.hevcCompressionMode} onChange={(event) => setDraft({ ...draft, hevcCompressionMode: event.target.value as SystemSettings["hevcCompressionMode"] })}><option value="auto">Automatic</option><option value="on">On</option><option value="off">Off</option></select></label>
-        <div><Button disabled={!dirty} onClick={() => { setMessage(""); setSudoOpen(true); }}>Save changes</Button></div>
-        <AnimatePresence mode="wait">{error ? <motion.p key="error" className="text-sm text-[var(--text-error)]" initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: MOTION_TIMINGS.notice }}>{error}</motion.p> : message ? <motion.p key="message" className="text-sm text-green-400" initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: MOTION_TIMINGS.notice }}>{message}</motion.p> : null}</AnimatePresence>
+    <section className="admin-panel admin-panel--storage">
+      {header}
+      <GlassPane className="admin-settings-card" spotlight={false}>
+        <form onSubmit={(event) => { event.preventDefault(); if (dirty) { setMessage(""); setSudoOpen(true); } }}>
+          <div className="admin-settings-grid">
+            <label className="admin-control">
+              <span>Storage engine</span>
+              <select value={draft.storageEngine} onChange={(event) => setDraft({ ...draft, storageEngine: event.target.value as SystemSettings["storageEngine"] })}>
+                <option value="LOCAL">Local server storage</option>
+                <option value="CLOUD">Rclone cloud storage</option>
+              </select>
+              <small>Choose where newly ingested media is stored.</small>
+            </label>
+            <Input className="admin-control admin-control--input" label="Rclone remote path" value={draft.rcloneRemotePath} onChange={(event) => setDraft({ ...draft, rcloneRemotePath: event.target.value })} disabled={draft.storageEngine !== "CLOUD"} placeholder="remote:streamhome/media" />
+            <label className="admin-control">
+              <span>HEVC compression</span>
+              <select value={draft.hevcCompressionMode} onChange={(event) => setDraft({ ...draft, hevcCompressionMode: event.target.value as SystemSettings["hevcCompressionMode"] })}>
+                <option value="auto">Automatic</option>
+                <option value="on">Always enabled</option>
+                <option value="off">Disabled</option>
+              </select>
+              <small>Automatic mode lets the server select the safest compression path.</small>
+            </label>
+          </div>
+          <footer className="admin-settings-actions">
+            <AnimatePresence mode="wait">
+              {error ? <motion.p key="error" className="admin-form-message admin-form-message--error" role="alert" initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: MOTION_TIMINGS.notice }}>{error}</motion.p> : message ? <motion.p key="message" className="admin-form-message admin-form-message--success" role="status" initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: MOTION_TIMINGS.notice }}>{message}</motion.p> : <span>Changes require account authorization.</span>}
+            </AnimatePresence>
+            <Button className="admin-primary-action" type="submit" disabled={!dirty}>Save changes</Button>
+          </footer>
+        </form>
       </GlassPane>
       <SudoModal isOpen={sudoOpen} actionLabel="Save server settings" onCancel={() => setSudoOpen(false)} onSuccess={save} />
     </section>

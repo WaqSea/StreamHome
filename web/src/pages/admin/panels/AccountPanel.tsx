@@ -6,5 +6,24 @@ import { GlassPane } from "../../../components/ui/GlassPane";
 export function AccountPanel() {
   const navigate = useNavigate();
   const location = useLocation();
-  return <section className="mx-auto max-w-3xl p-8"><h1 className="text-3xl font-semibold">Account and Security</h1><p className="mt-2 text-[var(--text-muted)]">Manage TOTP, recovery access, devices, and security history on the dedicated account page.</p><GlassPane className="mt-8 p-7" spotlight={false}><h2 className="text-xl font-semibold">Server account protection</h2><p className="mt-2 text-sm text-[var(--text-muted)]">Sensitive controls require recent server-side reauthentication.</p><Button className="mt-6" onClick={() => navigate("/account/security", { state: { returnTo: `${location.pathname}${location.search}${location.hash}` } })}>Open Account Security</Button></GlassPane></section>;
+  const openSecurity = () => navigate("/account/security", { state: { returnTo: `${location.pathname}${location.search}${location.hash}` } });
+
+  return (
+    <section className="admin-panel admin-panel--account">
+      <header className="admin-panel__header">
+        <p>IDENTITY / ACCESS</p>
+        <h1>Account and Security</h1>
+        <span>Manage authentication, recovery access, signed-in devices, and security history.</span>
+      </header>
+      <GlassPane className="admin-card admin-security-card" spotlight={false}>
+        <div className="admin-card__icon" aria-hidden="true"><span>01</span></div>
+        <div className="admin-card__copy">
+          <p>SERVER ACCOUNT PROTECTION</p>
+          <h2>Security controls stay behind recent authentication.</h2>
+          <span>Open the dedicated security workspace to manage TOTP, recovery codes, active sessions, and the account audit trail.</span>
+        </div>
+        <Button className="admin-card__action" onClick={openSecurity}>Open Account Security</Button>
+      </GlassPane>
+    </section>
+  );
 }

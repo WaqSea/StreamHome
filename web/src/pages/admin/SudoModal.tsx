@@ -42,14 +42,13 @@ export function SudoModal({ isOpen, onSuccess, onCancel, actionLabel }: SudoModa
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onCancel}>
-      <form className="flex flex-col gap-4 p-7" onSubmit={submit}>
-        <h2 className="text-2xl font-semibold">Authorization required</h2>
-        <p className="text-sm text-[var(--text-muted)]">Confirm the server account to {actionLabel.toLowerCase()}.</p>
-        <Input label="Password" type="password" value={password} onChange={(event) => setPassword(event.target.value)} required />
-        {challengeToken && <Input label="TOTP code" inputMode="numeric" maxLength={6} value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, ""))} />}
-        {error && <p className="text-sm text-[var(--text-error)]">{error}</p>}
-        <div className="flex gap-3"><Button type="submit" disabled={loading}>{loading ? "Verifying…" : "Authorize"}</Button><Button type="button" variant="ghost" onClick={onCancel}>Cancel</Button></div>
+    <Modal isOpen={isOpen} onClose={onCancel} className="admin-sudo-modal">
+      <form className="admin-sudo-form" onSubmit={submit}>
+        <header><p>PROTECTED ACTION</p><h2>Authorization required</h2><span>Confirm the server account to {actionLabel.toLowerCase()}.</span></header>
+        <Input className="admin-field" label="Password" type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} required />
+        {challengeToken && <Input className="admin-field" label="Authenticator code" inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, ""))} required />}
+        {error && <p className="admin-form-message admin-form-message--error" role="alert">{error}</p>}
+        <div className="admin-sudo-form__actions"><Button className="admin-primary-action" type="submit" disabled={loading}>{loading ? "Verifying…" : "Authorize"}</Button><Button type="button" variant="ghost" onClick={onCancel}>Cancel</Button></div>
       </form>
     </Modal>
   );
