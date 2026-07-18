@@ -77,6 +77,10 @@
   transition-timing-function: var(--interaction-ease);
   will-change: transform;
 }
+.genre-category-gallery__grid > button { transform: translate3d(0,0,0); transform-origin: center; transition: transform var(--interaction-exit) var(--interaction-ease),border-color var(--interaction-exit) var(--interaction-ease),box-shadow var(--interaction-exit) var(--interaction-ease),filter var(--interaction-exit) var(--interaction-ease); will-change: transform; }
+.genre-category-gallery__art > img { transition: transform 620ms var(--interaction-ease),filter 620ms var(--interaction-ease),opacity var(--interaction-exit) var(--interaction-ease); }
+.genre-category-gallery__shade { transition: opacity var(--interaction-exit) var(--interaction-ease),background var(--interaction-exit) var(--interaction-ease); }
+.genre-category-gallery__copy strong,.genre-category-gallery__copy small { transition: transform var(--interaction-exit) var(--interaction-ease),color var(--interaction-exit) var(--interaction-ease),letter-spacing var(--interaction-exit) var(--interaction-ease); }
 .catalog-card::before,.ember-media-card::before { content: ""; position: absolute; z-index: 6; inset: 0; pointer-events: none; border: 1px solid transparent; opacity: 0; transition: opacity var(--interaction-exit) var(--interaction-ease),border-color var(--interaction-exit) var(--interaction-ease),box-shadow var(--interaction-exit) var(--interaction-ease); }
 .catalog-card::after,.ember-media-card::after { content: ""; position: absolute; z-index: 7; inset: 0 0 auto; height: 2px; pointer-events: none; background: var(--accent-gradient,var(--accent-primary)); opacity: 0; transform: scaleX(.18); transform-origin: left; transition: opacity var(--interaction-enter) var(--interaction-ease),transform 360ms var(--interaction-ease); }
 .catalog-card__art > img,.ember-media-card__art > img,.search-result__art,.ember-search__art,.episode-card__art {
@@ -176,6 +180,16 @@
   .catalog-card[data-card-theme="poster"]:hover::after { background: #e50914; }
   .catalog-card[data-card-theme="module"]:hover { transform: translate3d(0,-5px,0); box-shadow: 0 19px 42px rgba(0,0,0,.38),0 0 0 1px rgba(138,180,248,.3),0 0 24px rgba(66,133,244,.1); }
 
+  .genre-category-gallery__grid > button:hover .genre-category-gallery__art > img { transform: scale(1.065); filter: saturate(1.12) contrast(1.04); }
+  .theme-app[data-interaction="terminal"] .genre-category-gallery__grid > button:hover { transform: translate3d(0,-4px,0) scaleX(1.018); border-color: rgba(255,126,78,.72); box-shadow: inset 3px 0 #ff5f1f,0 18px 42px rgba(12,4,2,.6),0 0 25px rgba(255,95,31,.2); }
+  .theme-app[data-interaction="terminal"] .genre-category-gallery__grid > button:hover .genre-category-gallery__copy strong { transform: translateX(5px); }
+  .theme-app[data-interaction="editorial"] .genre-category-gallery__grid > button:hover { transform: translate3d(0,-8px,0) scale(1.025); border-color: rgba(255,255,255,.48); box-shadow: 0 30px 68px rgba(0,0,0,.4),0 0 36px rgba(216,199,255,.14); filter: brightness(1.055); }
+  .theme-app[data-interaction="editorial"] .genre-category-gallery__grid > button:hover .genre-category-gallery__copy strong { transform: translateY(-3px); }
+  .theme-app[data-interaction="cinematic"] .genre-category-gallery__grid > button:hover { transform: scale(1.022); border-color: rgba(229,9,20,.9); box-shadow: 0 24px 54px rgba(0,0,0,.68),0 9px 28px -13px rgba(229,9,20,.95); filter: brightness(1.08) contrast(1.04); }
+  .theme-app[data-interaction="cinematic"] .genre-category-gallery__grid > button:hover .genre-category-gallery__copy strong { letter-spacing: .035em; }
+  .theme-app[data-interaction="workspace"] .genre-category-gallery__grid > button:hover { transform: translate3d(5px,-4px,0) scale(1.012); border-color: rgba(138,180,248,.62); box-shadow: 0 20px 46px rgba(0,0,0,.42),-4px 0 #8ab4f8,0 0 26px rgba(66,133,244,.15); }
+  .theme-app[data-interaction="workspace"] .genre-category-gallery__grid > button:hover .genre-category-gallery__copy strong { transform: translateX(4px); }
+
   .search-result:not(:disabled):hover,.ember-search__results > button:not(:disabled):hover,.episode-card:not(:disabled):hover { transform: translate3d(0,-3px,0); border-color: var(--interaction-border); box-shadow: var(--interaction-shadow); background: color-mix(in srgb,var(--glass-fill) 88%,var(--interaction-fill)); }
   .search-result:not(:disabled):hover .search-result__art,.ember-search__results > button:not(:disabled):hover .ember-search__art,.episode-card:not(:disabled):hover .episode-card__art { transform: scale(1.035); filter: saturate(1.1) contrast(1.03); }
   .search-result:not(:disabled):hover > span,.ember-search__results > button:not(:disabled):hover > span,.episode-card:not(:disabled):hover > span { transform: translateX(4px); }
@@ -209,6 +223,7 @@
 :where(
   .interaction-button,.interaction-chip,.feature-action,.ember-action,.details-close,
   .season-tabs button,.genre-filter button,.ember-filters button,.category-filter button,.admin-nav button,
+  .genre-category-gallery__grid > button,
   .profile-editor button,.profile-gallery button,.player-controls button,
   .player-complete-panel button
 ):focus-visible {
@@ -223,6 +238,7 @@
   :where(.theme-app,.profile-gallery,.login-page,.player-view,.app-guard-state) { --interaction-enter: 120ms; --interaction-exit: 120ms; }
   :where(.theme-app,.profile-gallery,.login-page,.player-view,.app-guard-state) button,
   .interaction-option,.interactive-glass-pane,.catalog-card,.ember-media-card,.profile-tile,
+  .genre-category-gallery__grid > button,.genre-category-gallery__art > img,
   .catalog-card img,.ember-media-card img,.search-result img,.episode-card img {
     transform: none !important;
     transition-duration: 120ms !important;

@@ -16,6 +16,13 @@ export interface CategoryOption {
   kind: "virtual" | "genre";
 }
 
+export interface GenreCategoryCard {
+  value: string;
+  label: string;
+  count: number;
+  representative: Movie;
+}
+
 export interface CatalogSection {
   id: string;
   label: string;
@@ -28,6 +35,7 @@ export interface CatalogPresentationModel {
   activeCategory: string;
   activeLabel: string;
   categories: CategoryOption[];
+  genreCards: GenreCategoryCard[];
   billboardItems: Movie[];
   sections: CatalogSection[];
   gridItems: Movie[];
@@ -69,6 +77,16 @@ export function categoryOptions(items: Movie[]): CategoryOption[] {
   ];
 }
 
+export function genreCategoryCards(items: Movie[]): GenreCategoryCard[] {
+  return categoryOptions(items)
+    .filter((option) => option.kind === "genre")
+    .map((option) => {
+      const matching = items.filter((movie) => movie.genres.some((genre) => categoryKey(genre) === categoryKey(option.value)));
+      return { value: option.value, label: option.label, count: matching.length, representative: matching[0] };
+    })
+    .filter((card): card is GenreCategoryCard => Boolean(card.representative));
+}
+
 function sourceForView(movies: Movie[], view: CatalogView): Movie[] {
   if (view === "movies") return movies.filter((movie) => movie.type === "movie");
   if (view === "series") return movies.filter((movie) => movie.type === "series");
@@ -96,12 +114,13 @@ export function buildCatalogPresentation({
 }): CatalogPresentationModel {
   const sourceItems = sourceForView(movies, view);
   const categories = categoryOptions(sourceItems);
+  const genreCards = genreCategoryCards(sourceItems);
   const requested = category?.trim() || RECOMMENDED_CATEGORY;
   const key = categoryKey(requested);
 
   if (key === ALL_RELEASES_CATEGORY) {
     const gridItems = sortByReleaseYear(sourceItems);
-    return { mode: "all", activeCategory: ALL_RELEASES_CATEGORY, activeLabel: "All Releases", categories, billboardItems: gridItems, sections: [], gridItems, sourceItems };
+    return { mode: "all", activeCategory: ALL_RELEASES_CATEGORY, activeLabel: "All Releases", categories, genreCards, billboardItems: gridItems, sections: [], gridItems, sourceItems };
   }
 
   if (key !== RECOMMENDED_CATEGORY) {
@@ -113,7 +132,7 @@ export function buildCatalogPresentation({
       section("genre-movies", "GENRE / MOVIES", "Movies", matching.filter((movie) => movie.type === "movie")),
       section("genre-series", "GENRE / SERIES", "Series", matching.filter((movie) => movie.type === "series")),
     ]) : [];
-    return { mode: "genre", activeCategory, activeLabel, categories, billboardItems: matching, sections, gridItems: view === "home" ? [] : matching, sourceItems };
+    return { mode: "genre", activeCategory, activeLabel, categories, genreCards, billboardItems: matching, sections, gridItems: view === "home" ? [] : matching, sourceItems };
   }
 
   const topPicks = sourceItems.slice(0, TOP_PICKS_LIMIT);
@@ -126,5 +145,5 @@ export function buildCatalogPresentation({
     section("top-picks", "PERSONALIZED / PROFILE", "Top Picks For You", topPicks),
     ...groupMoviesByGenre(sourceItems).map((collection) => section(`genre-${categoryKey(collection.genre)}`, `${view.toUpperCase()} / GENRE`, collection.genre, collection.items)),
   ]);
-  return { mode: "recommended", activeCategory: RECOMMENDED_CATEGORY, activeLabel: "Recommended", categories, billboardItems: sourceItems, sections, gridItems: [], sourceItems };
+  return { mode: "recommended", activeCategory: RECOMMENDED_CATEGORY, activeLabel: "Recommended", categories, genreCards, billboardItems: sourceItems, sections, gridItems: [], sourceItems };
 }

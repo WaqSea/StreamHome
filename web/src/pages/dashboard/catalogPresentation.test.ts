@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Movie } from "../../types/api";
-import { ALL_RELEASES_CATEGORY, buildCatalogPresentation, categoryOptions, groupMoviesByGenre, sortByReleaseYear, TOP_PICKS_LIMIT } from "./catalogPresentation";
+import { ALL_RELEASES_CATEGORY, buildCatalogPresentation, categoryOptions, genreCategoryCards, groupMoviesByGenre, sortByReleaseYear, TOP_PICKS_LIMIT } from "./catalogPresentation";
 
 function movie(id: string, genres: string[], type: "movie" | "series" = "movie", releaseYear = 0): Movie {
   return {
@@ -25,6 +25,18 @@ describe("catalog presentation", () => {
 
   it("builds virtual options before sorted server genres", () => {
     expect(categoryOptions([movie("one", ["Science Fiction", "Action"]), movie("two", ["Action"])]).map((option) => option.label)).toEqual(["Recommended", "All Releases", "Action", "Science Fiction"]);
+  });
+
+  it("builds real-genre category cards with ranked artwork representatives and counts", () => {
+    const firstAction = movie("first-action", ["Action"]);
+    const drama = movie("drama", ["Drama"]);
+    const secondAction = movie("second-action", ["Action"]);
+    const cards = genreCategoryCards([firstAction, drama, secondAction]);
+    expect(cards.map((card) => [card.label, card.count, card.representative.id])).toEqual([
+      ["Action", 2, "first-action"],
+      ["Drama", 1, "drama"],
+    ]);
+    expect(cards.some((card) => card.value === "recommended" || card.value === "all")).toBe(false);
   });
 
   it("sorts All Releases by year with stable ties and missing years last", () => {
@@ -52,6 +64,8 @@ describe("catalog presentation", () => {
     const movies = buildCatalogPresentation({ movies: [film, show], continueWatching: [], view: "movies", category: ALL_RELEASES_CATEGORY });
     expect(home.gridItems).toEqual([show, film]);
     expect(movies.gridItems).toEqual([film]);
+    expect(home.genreCards[0].count).toBe(2);
+    expect(movies.genreCards[0].count).toBe(1);
   });
 
   it("splits a Home genre into Movies and Series but uses a grid in archives", () => {

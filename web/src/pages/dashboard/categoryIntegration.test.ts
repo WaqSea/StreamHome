@@ -11,6 +11,8 @@ describe("category renderer parity", () => {
     for (const source of [shared, ember]) {
       expect(source).toContain("buildCatalogPresentation");
       expect(source).toContain("<CategoryFilterRail");
+      expect(source).toContain("<GenreCategoryGallery");
+      expect(source).toContain("cards={model.genreCards}");
       expect(source).toContain("model.billboardItems");
       expect(source).toContain("model.gridItems");
       expect(source).toContain("model.sections.map");
@@ -23,11 +25,14 @@ describe("category renderer parity", () => {
     const ember = read("src/themes/ember/ember-application.css");
     const interactions = read("src/themes/application/interactions.css");
     for (const theme of ["aurora", "cinema", "gemini"]) expect(application).toContain(`.theme-app--${theme} .category-filter button`);
+    for (const theme of ["aurora", "cinema", "gemini"]) expect(application).toContain(`.theme-app--${theme} .genre-category-gallery`);
     expect(ember).toContain(".ember-category-discovery .category-filter button[data-active=\"true\"]");
+    expect(ember).toContain(".ember-category-discovery .genre-category-gallery__grid > button");
     expect(application).toContain("scroll-snap-type: x proximity");
     expect(application).toContain(".category-filter::before,.category-filter::after");
     expect(application).toContain(".category-catalog-grid");
     expect(ember).toContain(".ember-category-grid");
     for (const profile of ["terminal", "editorial", "cinematic", "workspace"]) expect(interactions).toContain(`data-interaction=\"${profile}\"] .category-filter button`);
+    for (const profile of ["terminal", "editorial", "cinematic", "workspace"]) expect(interactions).toContain(`data-interaction=\"${profile}\"] .genre-category-gallery__grid > button:hover`);
   });
 });

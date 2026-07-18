@@ -13,6 +13,7 @@ import { completionFraction, isPlayableMovie } from "../../../utils/media";
 import { DetailsRouter } from "../../details/DetailsRouter";
 import { buildCatalogPresentation } from "../catalogPresentation";
 import { CategoryFilterRail } from "../CategoryFilterRail";
+import { GenreCategoryGallery } from "../GenreCategoryGallery";
 import { ROTATION_INTERVAL, useRotatingFeature } from "../useRotatingFeature";
 import { EmberDownloads } from "./EmberDownloads";
 import { AnimatedState, AnimatedView, CONTENT_REVEAL, CONTENT_STAGGER, REDUCED_BILLBOARD_MOTION, THEME_MOTION, useAppMotion } from "../../../motion/motionSystem";
@@ -64,6 +65,7 @@ function EmberCatalogView({ query, controller, onOpen, onPlay, onCategory }: { q
   return <div className={`${view === "home" ? "ember-home" : "ember-discovery"} ember-category-discovery`} data-category-mode={model.mode}>
     {model.billboardItems.length > 0 && <EmberBillboard items={model.billboardItems} context={context} onDetails={onOpen} onPlay={onPlay} />}
     <CategoryFilterRail options={model.categories} active={model.activeCategory} variant="ember" onSelect={onCategory} />
+    <GenreCategoryGallery cards={model.genreCards} active={model.activeCategory} variant="ember" onSelect={onCategory} />
     <AnimatedState stateKey={`${model.mode}:${model.activeCategory}`}>
       {model.gridItems.length > 0 ? <EmberGrid title={model.mode === "all" ? "All Releases" : model.activeLabel} label={model.mode === "all" ? "COMPLETE SERVER CATALOG" : "CATEGORY CATALOG"} items={model.gridItems} sessions={controller.sessions} onOpen={onOpen} /> : hasResults ? <motion.div variants={CONTENT_STAGGER} initial="hidden" animate="shown" className={collectionsClass}>{model.sections.map((collection) => <EmberRail key={collection.id} label={collection.label} title={collection.title} items={collection.items} sessions={controller.sessions} onOpen={onOpen} />)}</motion.div> : <div className="ember-category-discovery__empty"><EmberStatePanel code="NO CATEGORY SIGNAL" title={emptyTitle} body={emptyBody} /></div>}
     </AnimatedState>
