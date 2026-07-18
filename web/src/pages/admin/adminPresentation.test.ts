@@ -15,18 +15,21 @@ describe("admin presentation contracts", () => {
     const application = read("src/themes/application/application.css");
     const gate = read("src/pages/admin/AdminGate.tsx");
     const account = read("src/pages/admin/panels/AccountPanel.tsx");
+    const security = read("src/pages/AccountSecurityPage.tsx");
     const storage = read("src/pages/admin/panels/StoragePanel.tsx");
 
     for (const selector of [
       ".admin-auth-stage",
       ".admin-panel__header",
-      ".admin-security-card",
+      ".admin-security",
+      ".security-credential-grid",
       ".admin-settings-grid",
       ".admin-settings-actions",
     ]) expect(application).toContain(selector);
 
     expect(gate).toContain('className="admin-auth-form"');
-    expect(account).toContain('className="admin-panel admin-panel--account"');
+    expect(account).toContain("<AccountSecurityPage />");
+    expect(security).toContain('className="admin-panel admin-panel--account admin-security"');
     expect(storage).toContain('className="admin-panel admin-panel--storage"');
     expect(application).toContain("@media (max-width: 760px)");
   });

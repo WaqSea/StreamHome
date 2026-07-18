@@ -31,7 +31,7 @@ describe("legacy Account Security routing", () => {
   it("canonicalizes the old path with the persisted profile", async () => {
     localStorage.setItem("streamhome_profile", "1");
     renderRedirect();
-    await waitFor(() => expect(screen.getByTestId("location").textContent).toBe("/?profile=1&view=admin&section=security"));
+    await waitFor(() => expect(screen.getByTestId("location").textContent).toBe("/?profile=1&view=admin&section=account"));
   });
 
   it("returns to profile selection when no profile is available", async () => {

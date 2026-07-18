@@ -23,16 +23,23 @@ from routes.auth import get_current_user, health_router, router
 EMAIL = "streamhome_auth_regression@example.test"
 PASSWORD = "StreamHome-Regression-Password"
 SECRET = "JBSWY3DPEHPK3PXP"
+UPDATED_EMAIL = "streamhome_auth_regression_updated@example.test"
+UPDATED_PASSWORD = "StreamHome-Regression-Password-Updated"
 
 
-async def seed_user() -> None:
+async def seed_user() -> int:
     await init_db()
     async with AsyncSession(engine, expire_on_commit=False) as db:
         existing = (await db.execute(select(User).where(User.email == EMAIL))).scalars().first()
         if existing:
             await cleanup_user(existing.id, db)
-        db.add(User(email=EMAIL, password_hash=bcrypt.hashpw(PASSWORD.encode(), bcrypt.gensalt()).decode(), totp_secret=SECRET, two_factor_enabled=True))
+        updated = (await db.execute(select(User).where(User.email == UPDATED_EMAIL))).scalars().first()
+        if updated:
+            await cleanup_user(updated.id, db)
+        user = User(email=EMAIL, password_hash=bcrypt.hashpw(PASSWORD.encode(), bcrypt.gensalt()).decode(), totp_secret=SECRET, two_factor_enabled=True)
+        db.add(user)
         await db.commit()
+        return int(user.id)
 
 
 async def reset_lockout() -> None:
@@ -75,7 +82,7 @@ async def protected(user: User = Depends(get_current_user)):
 
 
 def run() -> None:
-    asyncio.run(seed_user())
+    user_id = asyncio.run(seed_user())
     client = TestClient(app)
     headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0) Chrome/130.0", "X-Forwarded-For": "10.0.0.25"}
     try:
@@ -125,9 +132,33 @@ def run() -> None:
         events = client.get("/api/auth/security/events", headers=bearer)
         serialized = events.text.lower()
         assert events.status_code == 200 and PASSWORD.lower() not in serialized and challenge.lower() not in serialized
+
+        previous_days = settings.SESSION_LIFETIME_DAYS
+        previous_minutes = settings.JWT_EXPIRATION_MINUTES
+        previous_save = settings.save_to_json
+        settings.save_to_json = lambda: None
+        try:
+            policy = client.put("/api/auth/security/session-policy", json={"session_lifetime_days": 30}, headers=bearer)
+            assert policy.status_code == 200 and policy.json()["sessionLifetimeDays"] == 30
+            assert policy.json()["existingSessionsChanged"] is False
+        finally:
+            settings.SESSION_LIFETIME_DAYS = previous_days
+            settings.JWT_EXPIRATION_MINUTES = previous_minutes
+            settings.save_to_json = previous_save
+
+        email_change = client.put("/api/auth/security/email", json={"email": UPDATED_EMAIL, "current_password": PASSWORD}, headers=bearer)
+        assert email_change.status_code == 200 and email_change.json()["email"] == UPDATED_EMAIL
+        replacement_bearer = {**headers, "Authorization": f"Bearer {email_change.json()['accessToken']}"}
+        assert client.get("/protected", headers=bearer).status_code == 401
+        assert client.get("/protected", headers=replacement_bearer).json()["email"] == UPDATED_EMAIL
+
+        password_change = client.put("/api/auth/security/password", json={"current_password": PASSWORD, "new_password": UPDATED_PASSWORD}, headers=replacement_bearer)
+        assert password_change.status_code == 200
+        assert client.post("/api/auth/login", json={"email": UPDATED_EMAIL, "password": PASSWORD}, headers=headers).status_code == 401
+        assert client.post("/api/auth/login", json={"email": UPDATED_EMAIL, "password": UPDATED_PASSWORD}, headers=headers).status_code == 200
         print("Authentication security regression checks passed.")
     finally:
-        asyncio.run(cleanup_user())
+        asyncio.run(cleanup_user(user_id))
 
 
 if __name__ == "__main__":

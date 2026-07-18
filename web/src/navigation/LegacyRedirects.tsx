@@ -18,7 +18,7 @@ export function LegacyAdminRedirect() {
   const profile = useProfileStore((state) => state.activeProfile);
   const profileId = profile?.id ?? localStorage.getItem("streamhome_profile");
   const rawSection = location.pathname.split("/").filter(Boolean)[1];
-  const section = rawSection === "security" || rawSection === "storage" || rawSection === "downloads" ? rawSection : "account";
+  const section = rawSection === "storage" || rawSection === "downloads" ? rawSection : "account";
   return profileId
     ? <Navigate to={appUrl(profileId, "admin", { section })} replace />
     : <Navigate to="/profiles" state={{ from: location }} replace />;
@@ -29,7 +29,7 @@ export function LegacyAccountSecurityRedirect() {
   const profile = useProfileStore((state) => state.activeProfile);
   const profileId = profile?.id ?? localStorage.getItem("streamhome_profile");
   return profileId
-    ? <Navigate to={appUrl(profileId, "admin", { section: "security" })} replace />
+    ? <Navigate to={appUrl(profileId, "admin", { section: "account" })} replace />
     : <Navigate to="/profiles" state={{ from: location }} replace />;
 }
 

@@ -4,7 +4,7 @@ import json
 import secrets
 import time
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Optional
 
 import bcrypt
@@ -13,7 +13,7 @@ import pyotp
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
-from sqlalchemy import delete, text
+from sqlalchemy import delete, func, text
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -56,6 +56,20 @@ class TOTPDisableRequest(BaseModel):
     code: str
 
 
+class UpdateEmailRequest(BaseModel):
+    email: str
+    current_password: str
+
+
+class UpdatePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+
+class SessionPolicyRequest(BaseModel):
+    session_lifetime_days: int
+
+
 def now() -> float:
     return time.time()
 
@@ -67,6 +81,41 @@ def token_hash(value: str) -> str:
 def recovery_hash(value: str) -> str:
     normalized = value.replace("-", "").replace(" ", "").upper()
     return hmac.new(settings.JWT_SECRET.encode("utf-8"), normalized.encode("utf-8"), hashlib.sha256).hexdigest()
+
+
+def normalize_email(value: str) -> str:
+    normalized = value.strip().lower()
+    if len(normalized) > 254 or normalized.count("@") != 1 or any(character.isspace() for character in normalized):
+        raise HTTPException(status_code=422, detail={"code": "invalid_email", "message": "Enter a valid email address."})
+    local, domain = normalized.split("@", 1)
+    if not local or not domain or domain.startswith(".") or domain.endswith("."):
+        raise HTTPException(status_code=422, detail={"code": "invalid_email", "message": "Enter a valid email address."})
+    return normalized
+
+
+def encode_session_token(user: User, session: AuthSession) -> str:
+    payload = {
+        "sub": user.email,
+        "jti": session.id,
+        "iat": datetime.utcnow(),
+        "exp": datetime.utcfromtimestamp(session.expires_at),
+    }
+    return jwt.encode(payload, settings.JWT_SECRET, algorithm=settings.JWT_ALGORITHM)
+
+
+async def revoke_other_user_sessions(user: User, current: AuthSession, db: AsyncSession) -> int:
+    result = await db.execute(select(AuthSession).where(
+        AuthSession.user_id == user.id,
+        AuthSession.id != current.id,
+        AuthSession.revoked_at == None,
+    ))
+    revoked = 0
+    timestamp = now()
+    for item in result.scalars().all():
+        item.revoked_at = timestamp
+        db.add(item)
+        revoked += 1
+    return revoked
 
 
 def client_ip(request: Request) -> str:
@@ -174,8 +223,7 @@ async def issue_session(user: User, db: AsyncSession, request: Request) -> dict:
     db.add(session)
     await add_event(db, request, "login_success", "success", user.id, session_id)
     await db.commit()
-    payload = {"sub": user.email, "jti": session_id, "iat": datetime.utcnow(), "exp": datetime.utcnow() + timedelta(minutes=settings.JWT_EXPIRATION_MINUTES)}
-    access_token = jwt.encode(payload, settings.JWT_SECRET, algorithm=settings.JWT_ALGORITHM)
+    access_token = encode_session_token(user, session)
     return {
         "accessToken": access_token,
         "tokenType": "bearer",
@@ -244,7 +292,8 @@ async def health(db: AsyncSession = Depends(get_session)):
 
 @router.post("/login")
 async def login(req: LoginRequest, request: Request, db: AsyncSession = Depends(get_session)):
-    result = await db.execute(select(User).where(User.email == req.email.strip()))
+    requested_email = req.email.strip().lower()
+    result = await db.execute(select(User).where(func.lower(User.email) == requested_email))
     user = result.scalars().first()
     if not user:
         await add_event(db, request, "login_failure", "failure")
@@ -355,7 +404,87 @@ async def security_summary(user: User = Depends(get_current_user), session: Auth
         "email": user.email,
         "twoFactorEnabled": user.two_factor_enabled,
         "recoveryCodesRemaining": len(recovery_result.scalars().all()),
+        "sessionLifetimeDays": settings.SESSION_LIFETIME_DAYS,
         "previousLogin": None if not previous else {"at": previous.created_at, "ipAddress": previous.ip_address, "deviceLabel": previous.device_label},
+    }
+
+
+@router.put("/security/email")
+async def update_email(req: UpdateEmailRequest, request: Request, user: User = Depends(get_current_user), current: AuthSession = Depends(require_recent_reauth), db: AsyncSession = Depends(get_session)):
+    if not bcrypt.checkpw(req.current_password.encode("utf-8"), user.password_hash.encode("utf-8")):
+        await register_failure(user, db, request, "email_change_failure")
+        if user.lockout_until:
+            raise lockout_exception(user)
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail={"code": "invalid_credentials", "message": "The current password was not accepted."})
+    next_email = normalize_email(req.email)
+    if next_email == user.email.lower():
+        raise HTTPException(status_code=400, detail={"code": "no_changes", "message": "Enter a different email address."})
+    duplicate = await db.execute(select(User).where(func.lower(User.email) == next_email, User.id != user.id))
+    if duplicate.scalars().first():
+        raise HTTPException(status_code=409, detail={"code": "email_unavailable", "message": "That email address is already in use."})
+    previous_email = user.email
+    user.email = next_email
+    db.add(user)
+    await db.execute(delete(AuthChallenge).where(AuthChallenge.user_id == user.id, AuthChallenge.used_at == None))
+    revoked = await revoke_other_user_sessions(user, current, db)
+    await add_event(db, request, "email_changed", "success", user.id, current.id, {
+        "previousEmail": previous_email,
+        "otherSessionsRevoked": revoked,
+    })
+    await db.commit()
+    return {
+        "message": "Account email updated.",
+        "email": user.email,
+        "accessToken": encode_session_token(user, current),
+        "tokenType": "bearer",
+        "otherSessionsRevoked": revoked,
+    }
+
+
+@router.put("/security/password")
+async def update_password(req: UpdatePasswordRequest, request: Request, user: User = Depends(get_current_user), current: AuthSession = Depends(require_recent_reauth), db: AsyncSession = Depends(get_session)):
+    current_password = req.current_password.encode("utf-8")
+    new_password = req.new_password.encode("utf-8")
+    if not bcrypt.checkpw(current_password, user.password_hash.encode("utf-8")):
+        await register_failure(user, db, request, "password_change_failure")
+        if user.lockout_until:
+            raise lockout_exception(user)
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail={"code": "invalid_credentials", "message": "The current password was not accepted."})
+    if len(req.new_password) < 6:
+        raise HTTPException(status_code=422, detail={"code": "weak_password", "message": "The new password must contain at least six characters."})
+    if len(new_password) > 72:
+        raise HTTPException(status_code=422, detail={"code": "password_too_long", "message": "The new password must not exceed 72 UTF-8 bytes."})
+    if bcrypt.checkpw(new_password, user.password_hash.encode("utf-8")):
+        raise HTTPException(status_code=400, detail={"code": "no_changes", "message": "Choose a password different from the current password."})
+    user.password_hash = bcrypt.hashpw(new_password, bcrypt.gensalt()).decode("utf-8")
+    db.add(user)
+    await db.execute(delete(AuthChallenge).where(AuthChallenge.user_id == user.id, AuthChallenge.used_at == None))
+    revoked = await revoke_other_user_sessions(user, current, db)
+    await add_event(db, request, "password_changed", "success", user.id, current.id, {"otherSessionsRevoked": revoked})
+    await db.commit()
+    return {"message": "Password updated.", "otherSessionsRevoked": revoked}
+
+
+@router.put("/security/session-policy")
+async def update_session_policy(req: SessionPolicyRequest, request: Request, user: User = Depends(get_current_user), current: AuthSession = Depends(require_recent_reauth), db: AsyncSession = Depends(get_session)):
+    if req.session_lifetime_days < 1 or req.session_lifetime_days > 365:
+        raise HTTPException(status_code=422, detail={"code": "invalid_session_lifetime", "message": "Session lifetime must be between 1 and 365 days."})
+    previous_days = settings.SESSION_LIFETIME_DAYS
+    if req.session_lifetime_days == previous_days:
+        raise HTTPException(status_code=400, detail={"code": "no_changes", "message": "Enter a different session lifetime."})
+    settings.SESSION_LIFETIME_DAYS = req.session_lifetime_days
+    settings.JWT_EXPIRATION_MINUTES = 60 * 24 * req.session_lifetime_days
+    settings.save_to_json()
+    await add_event(db, request, "session_policy_changed", "success", user.id, current.id, {
+        "previousDays": previous_days,
+        "sessionLifetimeDays": req.session_lifetime_days,
+        "existingSessionsChanged": False,
+    })
+    await db.commit()
+    return {
+        "message": "Session lifetime updated for new sign-ins.",
+        "sessionLifetimeDays": settings.SESSION_LIFETIME_DAYS,
+        "existingSessionsChanged": False,
     }
 
 
@@ -380,12 +509,7 @@ async def revoke_session(session_id: str, request: Request, user: User = Depends
 
 @router.post("/sessions/revoke-others")
 async def revoke_other_sessions(request: Request, user: User = Depends(get_current_user), current: AuthSession = Depends(require_recent_reauth), db: AsyncSession = Depends(get_session)):
-    result = await db.execute(select(AuthSession).where(AuthSession.user_id == user.id, AuthSession.id != current.id, AuthSession.revoked_at == None))
-    revoked = 0
-    for item in result.scalars().all():
-        item.revoked_at = now()
-        db.add(item)
-        revoked += 1
+    revoked = await revoke_other_user_sessions(user, current, db)
     await add_event(db, request, "sessions_revoked", "success", user.id, current.id, {"count": revoked})
     await db.commit()
     return {"revokedCount": revoked}

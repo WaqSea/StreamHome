@@ -36,7 +36,8 @@ class Settings:
         os.environ["JWT_SECRET"] = generated_secret
         JWT_SECRET = generated_secret
     JWT_ALGORITHM: str = "HS256"
-    JWT_EXPIRATION_MINUTES: int = 60 * 24 * 60  # 60 day absolute session
+    SESSION_LIFETIME_DAYS: int = max(1, min(365, int(os.getenv("SESSION_LIFETIME_DAYS", "60"))))
+    JWT_EXPIRATION_MINUTES: int = 60 * 24 * SESSION_LIFETIME_DAYS
     AUTH_CHALLENGE_MINUTES: int = 5
     REAUTHENTICATION_MINUTES: int = 10
     APP_VERSION: str = os.getenv("STREAMHOME_VERSION", "1.0.0")
@@ -70,6 +71,8 @@ class Settings:
                     self.BACKUP_ENABLED = data.get("backup_enabled", self.BACKUP_ENABLED)
                     self.AUTO_UPDATE_ENABLED = data.get("auto_update_enabled", self.AUTO_UPDATE_ENABLED)
                     self.HEVC_COMPRESSION_MODE = data.get("hevc_compression_mode", self.HEVC_COMPRESSION_MODE)
+                    self.SESSION_LIFETIME_DAYS = max(1, min(365, int(data.get("session_lifetime_days", self.SESSION_LIFETIME_DAYS))))
+                    self.JWT_EXPIRATION_MINUTES = 60 * 24 * self.SESSION_LIFETIME_DAYS
             except Exception as e:
                 print(f"Error loading settings.json: {e}")
 
@@ -82,7 +85,8 @@ class Settings:
                     "rclone_remote_path": self.RCLONE_REMOTE_PATH,
                     "backup_enabled": self.BACKUP_ENABLED,
                     "auto_update_enabled": self.AUTO_UPDATE_ENABLED,
-                    "hevc_compression_mode": self.HEVC_COMPRESSION_MODE
+                    "hevc_compression_mode": self.HEVC_COMPRESSION_MODE,
+                    "session_lifetime_days": self.SESSION_LIFETIME_DAYS
                 }, f, indent=2, ensure_ascii=False)
         except Exception as e:
             print(f"Error saving settings.json: {e}")

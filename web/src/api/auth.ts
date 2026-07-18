@@ -1,4 +1,4 @@
-import { apiDelete, apiGet, apiPost } from "./client";
+import { apiDelete, apiGet, apiPost, apiPut } from "./client";
 import type {
   AuthResponse,
   LoginRequest,
@@ -12,6 +12,9 @@ import type {
   AuthSessionInfo,
   SecurityEventsResponse,
   TwoFARequiredResponse,
+  AccountEmailUpdateResponse,
+  AccountSecurityUpdateResponse,
+  SessionPolicyUpdateResponse,
 } from "../types/api";
 
 type RawAuthResponse = {
@@ -73,6 +76,9 @@ export async function verifyReauthentication(data: VerifyRequest): Promise<Reaut
 export const getReauthenticationStatus = () => apiGet<{ reauthenticated: boolean; remainingSeconds: number }>("/api/auth/reauthenticate/status");
 export const logoutSession = () => apiPost<void>("/api/auth/logout");
 export const getSecuritySummary = () => apiGet<SecuritySummary>("/api/auth/security/summary");
+export const updateAccountEmail = (email: string, currentPassword: string) => apiPut<AccountEmailUpdateResponse>("/api/auth/security/email", { email, current_password: currentPassword });
+export const updateAccountPassword = (currentPassword: string, newPassword: string) => apiPut<AccountSecurityUpdateResponse>("/api/auth/security/password", { current_password: currentPassword, new_password: newPassword });
+export const updateSessionPolicy = (sessionLifetimeDays: number) => apiPut<SessionPolicyUpdateResponse>("/api/auth/security/session-policy", { session_lifetime_days: sessionLifetimeDays });
 export const getAuthSessions = () => apiGet<AuthSessionInfo[]>("/api/auth/sessions");
 export const revokeAuthSession = (id: string) => apiDelete<{ revoked: boolean; currentSession: boolean }>(`/api/auth/sessions/${encodeURIComponent(id)}`);
 export const revokeOtherSessions = () => apiPost<{ revokedCount: number }>("/api/auth/sessions/revoke-others");

@@ -25,7 +25,8 @@ describe("query-state navigation", () => {
     expect(appUrl("profile one", "search", { q: "dark city" })).toBe("/?profile=profile+one&view=search&q=dark+city");
     expect(appUrl("1", "watchlist")).toBe("/?profile=1&view=watchlist");
     expect(appUrl("1", "home", { genre: "recommended" })).toBe("/?profile=1&view=home&genre=recommended");
-    expect(appUrl("1", "admin", { section: "security" })).toBe("/?profile=1&view=admin&section=security");
+    expect(appUrl("1", "admin", { section: "account" })).toBe("/?profile=1&view=admin&section=account");
+    expect(canonicalAppUrl("?profile=1&view=admin&section=security")).toBe("/?profile=1&view=admin&section=account");
     expect(canonicalAppUrl("?junk=1&view=admin&profile=1&section=invalid")).toBe("/?profile=1&view=admin&section=account");
   });
 

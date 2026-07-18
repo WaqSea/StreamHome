@@ -1,6 +1,6 @@
 import React from "react";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
+import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as auth from "../api/auth";
 import { AccountSecurityPage } from "./AccountSecurityPage";
@@ -10,18 +10,14 @@ vi.mock("../api/auth", () => ({
   getSecuritySummary: vi.fn(), getAuthSessions: vi.fn(), getSecurityEvents: vi.fn(),
   revokeAuthSession: vi.fn(), revokeOtherSessions: vi.fn(), regenerateRecoveryCodes: vi.fn(),
   setup2FA: vi.fn(), verifySetup2FA: vi.fn(), disable2FA: vi.fn(),
+  updateAccountEmail: vi.fn(), updateAccountPassword: vi.fn(), updateSessionPolicy: vi.fn(),
 }));
 
-const summary = { email: "admin@example.test", twoFactorEnabled: true, recoveryCodesRemaining: 8, previousLogin: { at: 1_720_000_000, ipAddress: "10.0.0.2", deviceLabel: "Chrome on Windows" } };
+const summary = { email: "admin@example.test", twoFactorEnabled: true, recoveryCodesRemaining: 8, sessionLifetimeDays: 60, previousLogin: { at: 1_720_000_000, ipAddress: "10.0.0.2", deviceLabel: "Chrome on Windows" } };
 const securityEvent = { id: "event-123", type: "login_failure", outcome: "failure", createdAt: 1_720_000_000, ipAddress: "10.0.0.2", deviceLabel: "Chrome on Windows", details: { locked: true, attemptCount: 5, factors: ["password", "totp"], context: { purpose: "login" } } };
 
-function LocationProbe() {
-  const location = useLocation();
-  return <output data-testid="location">{`${location.pathname}${location.search}`}</output>;
-}
-
 function renderPage() {
-  return render(<MemoryRouter initialEntries={["/?profile=1&view=admin&section=security"]}><Routes><Route path="/" element={<><AccountSecurityPage /><LocationProbe /></>} /></Routes></MemoryRouter>);
+  return render(<MemoryRouter><AccountSecurityPage /></MemoryRouter>);
 }
 
 describe("AccountSecurityPage", () => {
@@ -53,8 +49,35 @@ describe("AccountSecurityPage", () => {
     expect(await screen.findByText("8 codes remaining")).toBeTruthy();
     expect(screen.getAllByText("Chrome on Windows").length).toBeGreaterThan(0);
     expect(screen.getByText("Login Failure")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Back" }));
-    await waitFor(() => expect(screen.getByTestId("location").textContent).toBe("/?profile=1&view=admin&section=account"));
+    expect(screen.getByRole("heading", { name: "Account and Security" })).toBeTruthy();
+    expect(screen.getByText("60 days")).toBeTruthy();
+  });
+
+  it("updates the administrator email and replaces the current browser token", async () => {
+    vi.mocked(auth.getReauthenticationStatus).mockResolvedValue({ reauthenticated: true, remainingSeconds: 500 });
+    vi.mocked(auth.updateAccountEmail).mockResolvedValue({ message: "Account email updated.", email: "new@example.test", accessToken: "replacement-token", tokenType: "bearer", otherSessionsRevoked: 1 });
+    renderPage();
+    fireEvent.change(await screen.findByLabelText("Email address"), { target: { value: "new@example.test" } });
+    fireEvent.change(screen.getAllByLabelText("Current password")[0], { target: { value: "secret" } });
+    fireEvent.click(screen.getByRole("button", { name: "Update email" }));
+    await waitFor(() => expect(auth.updateAccountEmail).toHaveBeenCalledWith("new@example.test", "secret"));
+    expect(localStorage.getItem("streamhome_token")).toBe("replacement-token");
+    expect(localStorage.getItem("streamhome_email")).toBe("new@example.test");
+  });
+
+  it("validates password confirmation and saves the new-session lifetime", async () => {
+    vi.mocked(auth.getReauthenticationStatus).mockResolvedValue({ reauthenticated: true, remainingSeconds: 500 });
+    vi.mocked(auth.updateSessionPolicy).mockResolvedValue({ message: "Session lifetime updated for new sign-ins.", sessionLifetimeDays: 30, existingSessionsChanged: false });
+    renderPage();
+    fireEvent.change(await screen.findByLabelText("New password"), { target: { value: "next-secret" } });
+    fireEvent.change(screen.getByLabelText("Confirm new password"), { target: { value: "different" } });
+    fireEvent.change(screen.getAllByLabelText("Current password")[1], { target: { value: "secret" } });
+    fireEvent.click(screen.getByRole("button", { name: "Update password" }));
+    expect(await screen.findByText("The new password confirmation does not match.")).toBeTruthy();
+    expect(auth.updateAccountPassword).not.toHaveBeenCalled();
+    fireEvent.change(screen.getByLabelText("Session lifetime in days"), { target: { value: "30" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save lifetime" }));
+    await waitFor(() => expect(auth.updateSessionPolicy).toHaveBeenCalledWith(30));
   });
 
   it("opens complete event details and restores focus when closed", async () => {
