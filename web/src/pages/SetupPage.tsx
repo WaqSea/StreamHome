@@ -138,7 +138,7 @@ export function SetupPage() {
     window.location.assign(target.toString());
   };
 
-  if (result) return <main className="setup-page"><section className="setup-complete-panel">
+  if (result) return <main className="setup-page setup-page--complete"><section className="setup-complete-panel">
     <span className="setup-success-mark" aria-hidden="true">✓</span><p className="setup-eyebrow">INSTALLATION COMPLETE</p>
     <h1>StreamHome is restarting</h1><p>Save these values now. They will not be shown again.</p>
     <pre>{secretsText}</pre>
