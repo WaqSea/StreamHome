@@ -35,10 +35,21 @@ describe("controlled category rail motion", () => {
     expect(railTarget({ scrollLeft: 120, clientWidth: 1000, scrollWidth: 2600 }, -1)).toBe(0);
   });
 
-  it("aligns an incomplete final group without retaining the preceding page", () => {
+  it("moves by half of the fitted card group and keeps the final page full", () => {
     const itemOffsets = [12, 240, 468, 696, 924, 1152, 1380, 1608, 1836, 2064, 2292, 2520];
-    expect(railTarget({ scrollLeft: 0, clientWidth: 1600, scrollWidth: 3200, itemOffsets, leadingInset: 12, trailingInset: 12, itemsPerPage: 7 }, 1)).toBe(1596);
-    expect(railTarget({ scrollLeft: 1596, clientWidth: 1600, scrollWidth: 3200, itemOffsets, leadingInset: 12, trailingInset: 12, itemsPerPage: 7 }, 1)).toBe(1596);
-    expect(railTarget({ scrollLeft: 1596, clientWidth: 1600, scrollWidth: 3200, itemOffsets, leadingInset: 12, trailingInset: 12, itemsPerPage: 7 }, -1)).toBe(0);
+    const metrics = { clientWidth: 1600, scrollWidth: 3200, itemOffsets, leadingInset: 12, trailingInset: 12, itemsPerPage: 7 };
+    expect(railTarget({ ...metrics, scrollLeft: 0 }, 1)).toBe(912);
+    expect(railTarget({ ...metrics, scrollLeft: 912 }, 1)).toBe(1140);
+    expect(railTarget({ ...metrics, scrollLeft: 1140 }, 1)).toBe(1140);
+    expect(railTarget({ ...metrics, scrollLeft: 1140 }, -1)).toBe(912);
+    expect(railTarget({ ...metrics, scrollLeft: 912 }, -1)).toBe(0);
+  });
+
+  it("uses half-page steps for even fitted groups", () => {
+    const itemOffsets = Array.from({ length: 16 }, (_, index) => 10 + index * 210);
+    const metrics = { clientWidth: 1660, scrollWidth: 3370, itemOffsets, leadingInset: 10, trailingInset: 10, itemsPerPage: 8 };
+    expect(railTarget({ ...metrics, scrollLeft: 0 }, 1)).toBe(840);
+    expect(railTarget({ ...metrics, scrollLeft: 840 }, 1)).toBe(1680);
+    expect(railTarget({ ...metrics, scrollLeft: 1680 }, -1)).toBe(840);
   });
 });

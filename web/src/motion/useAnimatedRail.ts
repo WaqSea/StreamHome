@@ -29,7 +29,7 @@ export function railTarget(element: RailTargetMetrics, direction: -1 | 1): numbe
   const usableWidth = Math.max(1, element.clientWidth - leadingInset - trailingInset);
   const current = Math.max(0, Math.min(maximum, element.scrollLeft));
   const positions = (element.itemOffsets ?? [])
-    .map((offset) => Math.max(0, Math.min(maximum, offset - leadingInset)))
+    .map((offset) => Math.max(0, offset - leadingInset))
     .filter((offset, index, values) => index === 0 || Math.abs(offset - values[index - 1]) > 1);
 
   if (!positions.length) {
@@ -39,15 +39,20 @@ export function railTarget(element: RailTargetMetrics, direction: -1 | 1): numbe
   if (element.itemsPerPage && element.itemsPerPage > 0) {
     const itemsPerPage = Math.max(1, Math.floor(element.itemsPerPage));
     const currentItem = positions.reduce((found, offset, index) => offset <= current + 1 ? index : found, 0);
-    const currentPage = Math.floor(currentItem / itemsPerPage) * itemsPerPage;
-    const lastPage = Math.floor((positions.length - 1) / itemsPerPage) * itemsPerPage;
-    const targetIndex = direction === 1 ? Math.min(lastPage, currentPage + itemsPerPage) : Math.max(0, currentPage - itemsPerPage);
-    return positions[targetIndex];
+    const navigationStep = Math.max(1, Math.ceil(itemsPerPage / 2));
+    const lastPageStart = Math.max(0, positions.length - itemsPerPage);
+    const previousGridPoint = Math.floor(lastPageStart / navigationStep) * navigationStep;
+    const targetIndex = direction === 1
+      ? Math.min(lastPageStart, currentItem + navigationStep)
+      : currentItem === lastPageStart && previousGridPoint < lastPageStart
+        ? previousGridPoint
+        : Math.max(0, currentItem - navigationStep);
+    return Math.min(maximum, positions[targetIndex]);
   }
 
   if (direction === 1) {
     const pageBoundary = current + usableWidth - 1;
-    return positions.find((offset) => offset > pageBoundary) ?? maximum;
+    return Math.min(maximum, positions.find((offset) => offset > pageBoundary) ?? maximum);
   }
 
   const pageBoundary = current - usableWidth + 1;
@@ -96,7 +101,6 @@ export function useAnimatedRail() {
     if (!cards.length) return;
     cards.forEach((card) => card.style.removeProperty("--rail-card-fitted"));
     if (window.matchMedia("(max-width: 760px)").matches) {
-      element.style.removeProperty("--rail-end-space");
       delete element.dataset.railPageSize;
       updateEdges();
       return;
@@ -112,7 +116,6 @@ export function useAnimatedRail() {
     const layout = fittedRailLayout(availableWidth, naturalCardWidth, minimumCardWidth, gap, cards.length);
     cards.forEach((card) => card.style.setProperty("--rail-card-fitted", `${layout.cardWidth}px`));
     element.dataset.railPageSize = String(layout.columns);
-    element.style.setProperty("--rail-end-space", `${Math.max(0, availableWidth - layout.cardWidth)}px`);
     updateEdges();
   }, [updateEdges]);
 
