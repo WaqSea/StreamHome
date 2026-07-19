@@ -1,7 +1,7 @@
 import React from "react";
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { clearArtworkResolutionCache, MediaArtwork } from "./MediaArtwork";
+import { clearArtworkResolutionCache, MediaArtwork, resolveArtworkCandidates } from "./MediaArtwork";
 
 describe("MediaArtwork", () => {
   beforeEach(() => {
@@ -60,5 +60,40 @@ describe("MediaArtwork", () => {
     await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
     expect(screen.getByRole("img", { name: "Cached title" }).getAttribute("src")).toBe(media.localThumbnailUrl);
     vi.useRealTimers();
+  });
+
+  it("skips an image that fails after probing and renders the TMDB fallback", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, body: null }) as Response));
+    const media = {
+      id: "m_42", title: "Fallback title", type: "movie" as const, releaseYear: 2024,
+      localThumbnailUrl: "/media/Movies/Fallback%20title_2024_TMDB_42/poster.jpg",
+      remoteThumbnailUrl: "https://image.tmdb.org/t/p/w500/fallback.jpg",
+      cacheState: "queued" as const,
+    };
+    render(<MediaArtwork src={media.remoteThumbnailUrl} alt="Fallback title" media={media} />);
+    const localImage = await screen.findByRole("img", { name: "Fallback title" });
+    expect(localImage.getAttribute("src")).toBe(media.localThumbnailUrl);
+    fireEvent.error(localImage);
+    await waitFor(() => expect(screen.getByRole("img", { name: "Fallback title" }).getAttribute("src")).toBe(media.remoteThumbnailUrl));
+  });
+
+  it("does not preserve a null resolution in the shared cache", async () => {
+    const fetchMock = vi.fn(async () => ({ ok: false, body: null }) as Response);
+    vi.stubGlobal("fetch", fetchMock);
+    const candidates = ["/media/Movies/missing/poster.jpg", "/media/Movies/also-missing/poster.jpg"];
+    expect(await resolveArtworkCandidates(candidates)).toBeNull();
+    expect(await resolveArtworkCandidates(candidates)).toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+  });
+
+  it("restores visibility when a cached image is already complete after remount", async () => {
+    vi.spyOn(HTMLImageElement.prototype, "complete", "get").mockReturnValue(true);
+    vi.spyOn(HTMLImageElement.prototype, "naturalWidth", "get").mockReturnValue(500);
+    const source = "https://image.tmdb.org/t/p/w500/cached.jpg";
+    const first = render(<MediaArtwork src={source} alt="Cached artwork" />);
+    await waitFor(() => expect(screen.getByRole("img", { name: "Cached artwork" }).getAttribute("data-loaded")).toBe("true"));
+    first.unmount();
+    render(<MediaArtwork src={source} alt="Cached artwork" />);
+    await waitFor(() => expect(screen.getByRole("img", { name: "Cached artwork" }).getAttribute("data-loaded")).toBe("true"));
   });
 });

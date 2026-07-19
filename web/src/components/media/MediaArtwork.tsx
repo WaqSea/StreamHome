@@ -38,6 +38,11 @@ export function resolveArtworkCandidates(candidates: string[]): Promise<string |
     return null;
   })();
   artworkResolutionCache.set(key, resolution);
+  void resolution.then((candidate) => {
+    if (!candidate && artworkResolutionCache.get(key) === resolution) artworkResolutionCache.delete(key);
+  }, () => {
+    if (artworkResolutionCache.get(key) === resolution) artworkResolutionCache.delete(key);
+  });
   return resolution;
 }
 
@@ -52,13 +57,16 @@ export function MediaArtwork({ src, alt, className, media, episode }: MediaArtwo
       ...(remote ? serverArtworkCandidates(remote, media, episode) : []),
     ].filter(Boolean)));
   }, [episode?.episodeNumber, episode?.seasonNumber, media, src]);
-  const candidateKey = candidates.join("\n");
-  const [candidateIndex, setCandidateIndex] = useState(0);
-  const [resolvedSrc, setResolvedSrc] = useState<string | null | undefined>(() => candidates.length > 1 ? undefined : candidates[0] ?? null);
+  const allCandidateKey = candidates.join("\n");
+  const [failedCandidates, setFailedCandidates] = useState<string[]>([]);
+  const availableCandidates = useMemo(() => candidates.filter((candidate) => !failedCandidates.includes(candidate)), [candidates, failedCandidates]);
+  const candidateKey = availableCandidates.join("\n");
+  const [resolvedSrc, setResolvedSrc] = useState<string | null | undefined>(() => availableCandidates.length > 1 ? undefined : availableCandidates[0] ?? null);
   const [loaded, setLoaded] = useState(false);
   const [probeVersion, setProbeVersion] = useState(0);
   const [probeAttempt, setProbeAttempt] = useState(0);
   const previousCandidateKey = useRef("");
+  const imageRef = useRef<HTMLImageElement>(null);
   const { reduced } = useAppMotion();
 
   useEffect(() => {
@@ -66,17 +74,16 @@ export function MediaArtwork({ src, alt, className, media, episode }: MediaArtwo
     let retryTimer: number | undefined;
     const candidateChanged = previousCandidateKey.current !== candidateKey;
     previousCandidateKey.current = candidateKey;
-    setCandidateIndex(0);
     if (candidateChanged) setLoaded(false);
-    if (candidates.length <= 1) {
-      setResolvedSrc(candidates[0] ?? null);
+    if (availableCandidates.length <= 1) {
+      setResolvedSrc(availableCandidates[0] ?? null);
       return () => { active = false; };
     }
     if (candidateChanged) setResolvedSrc(undefined);
-    void resolveArtworkCandidates(candidates).then((candidate) => {
+    void resolveArtworkCandidates(availableCandidates).then((candidate) => {
       if (!active) return;
       setResolvedSrc(candidate);
-      const localPending = candidates[0]?.startsWith("/media/") && candidate !== candidates[0] && media?.cacheState !== "error";
+      const localPending = availableCandidates[0]?.startsWith("/media/") && candidate !== availableCandidates[0] && media?.cacheState !== "error";
       if (localPending && probeAttempt < 7 && !document.hidden) {
         const delays = [1000, 2000, 4000, 8000, 15000, 30000, 30000];
         retryTimer = window.setTimeout(() => {
@@ -87,11 +94,18 @@ export function MediaArtwork({ src, alt, className, media, episode }: MediaArtwo
       }
     });
     return () => { active = false; if (retryTimer !== undefined) window.clearTimeout(retryTimer); };
-  }, [candidateKey, media?.cacheState, probeAttempt, probeVersion]);
+  }, [availableCandidates, candidateKey, media?.cacheState, probeAttempt, probeVersion]);
 
   useEffect(() => { setProbeAttempt(0); }, [candidateKey]);
+  useEffect(() => { setFailedCandidates([]); }, [allCandidateKey, media?.cacheState]);
 
-  const selectedSrc = candidates.length > 1 ? resolvedSrc : candidates[candidateIndex] ?? null;
+  const selectedSrc = availableCandidates.length > 1 ? resolvedSrc : availableCandidates[0] ?? null;
+
+  useEffect(() => {
+    setLoaded(false);
+    const image = imageRef.current;
+    if (image?.complete && image.naturalWidth > 0) setLoaded(true);
+  }, [selectedSrc]);
 
   if (selectedSrc === undefined) {
     return <div role="status" aria-label={`${alt} artwork loading`} className={cn("media-artwork-loading bg-[var(--bg-surface-container)]", className)} />;
@@ -113,19 +127,19 @@ export function MediaArtwork({ src, alt, className, media, episode }: MediaArtwo
 
   return <motion.img
     key={selectedSrc}
+    ref={imageRef}
     src={selectedSrc}
     alt={alt}
     className={className}
+    data-loaded={loaded ? "true" : "false"}
     initial={{ opacity: 0, scale: reduced ? 1 : 1.018, filter: reduced ? "none" : "blur(7px)" }}
     animate={{ opacity: loaded ? 1 : 0, scale: 1, filter: "blur(0px)" }}
     transition={{ duration: reduced ? MOTION_TIMINGS.reduced : MOTION_TIMINGS.artwork, ease: MOTION_EASE }}
     onLoad={() => setLoaded(true)}
     onError={() => {
       setLoaded(false);
-      if (candidates.length > 1) {
-        artworkResolutionCache.delete(candidateKey);
-        setResolvedSrc(null);
-      } else setCandidateIndex((index) => index + 1);
+      artworkResolutionCache.delete(candidateKey);
+      setFailedCandidates((current) => current.includes(selectedSrc) ? current : [...current, selectedSrc]);
     }}
   />;
 }
