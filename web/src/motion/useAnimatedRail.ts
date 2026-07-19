@@ -1,11 +1,37 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { MOTION_TIMINGS, useAppMotion } from "./motionSystem";
 
 export const cinematicRailEase = (progress: number): number => 1 - Math.pow(1 - Math.min(1, Math.max(0, progress)), 3);
 
-export function railTarget(element: Pick<HTMLElement, "scrollLeft" | "clientWidth" | "scrollWidth">, direction: -1 | 1): number {
-  const distance = Math.min(element.clientWidth * .82, 920);
-  return Math.max(0, Math.min(element.scrollWidth - element.clientWidth, element.scrollLeft + direction * distance));
+type RailTargetMetrics = Pick<HTMLElement, "scrollLeft" | "clientWidth" | "scrollWidth"> & {
+  itemOffsets?: readonly number[];
+  leadingInset?: number;
+  trailingInset?: number;
+};
+
+export function railTarget(element: RailTargetMetrics, direction: -1 | 1): number {
+  const maximum = Math.max(0, element.scrollWidth - element.clientWidth);
+  const leadingInset = Math.max(0, element.leadingInset ?? 0);
+  const trailingInset = Math.max(0, element.trailingInset ?? leadingInset);
+  const usableWidth = Math.max(1, element.clientWidth - leadingInset - trailingInset);
+  const current = Math.max(0, Math.min(maximum, element.scrollLeft));
+  const positions = (element.itemOffsets ?? [])
+    .map((offset) => Math.max(0, Math.min(maximum, offset - leadingInset)))
+    .filter((offset, index, values) => index === 0 || Math.abs(offset - values[index - 1]) > 1);
+
+  if (!positions.length) {
+    return Math.max(0, Math.min(maximum, current + direction * usableWidth));
+  }
+
+  if (direction === 1) {
+    const pageBoundary = current + usableWidth - 1;
+    return positions.find((offset) => offset > pageBoundary) ?? maximum;
+  }
+
+  const pageBoundary = current - usableWidth + 1;
+  const previousPages = positions.filter((offset) => offset < current - 1 && offset <= pageBoundary);
+  const pageStart = previousPages[previousPages.length - 1];
+  return pageStart ?? 0;
 }
 
 export function useAnimatedRail() {
@@ -15,6 +41,7 @@ export function useAnimatedRail() {
   const { reduced } = useAppMotion();
   const [direction, setDirection] = useState<-1 | 0 | 1>(0);
   const [edges, setEdges] = useState({ previous: false, next: true });
+  const [proximity, setProximity] = useState<"previous" | "next" | "none">("none");
 
   const updateEdges = useCallback(() => {
     const element = rail.current;
@@ -36,9 +63,17 @@ export function useAnimatedRail() {
     if (frame.current !== null) cancelAnimationFrame(frame.current);
     const from = element.scrollLeft;
     const basis = target.current ?? from;
-    element.scrollLeft = basis;
-    const to = railTarget(element, nextDirection);
-    element.scrollLeft = from;
+    const style = getComputedStyle(element);
+    const leadingInset = Number.parseFloat(style.paddingLeft) || 0;
+    const trailingInset = Number.parseFloat(style.paddingRight) || 0;
+    const to = railTarget({
+      scrollLeft: basis,
+      clientWidth: element.clientWidth,
+      scrollWidth: element.scrollWidth,
+      itemOffsets: Array.from(element.children, (child) => (child as HTMLElement).offsetLeft),
+      leadingInset,
+      trailingInset,
+    }, nextDirection);
     target.current = to;
     setDirection(nextDirection);
     if (reduced || Math.abs(to - from) < 1) {
@@ -56,6 +91,18 @@ export function useAnimatedRail() {
     };
     frame.current = requestAnimationFrame(tick);
   }, [reduced, stop, updateEdges]);
+
+  const onPointerMove = useCallback((event: ReactPointerEvent<HTMLElement>) => {
+    if (event.pointerType && event.pointerType !== "mouse") return;
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const edgeZone = Math.min(112, bounds.width * .14);
+    const distanceFromStart = event.clientX - bounds.left;
+    const distanceFromEnd = bounds.right - event.clientX;
+    const next = distanceFromStart <= edgeZone ? "previous" : distanceFromEnd <= edgeZone ? "next" : "none";
+    setProximity((current) => current === next ? current : next);
+  }, []);
+
+  const onPointerLeave = useCallback(() => setProximity("none"), []);
 
   useEffect(() => {
     const element = rail.current;
@@ -77,5 +124,14 @@ export function useAnimatedRail() {
     };
   }, [stop, updateEdges]);
 
-  return { rail, scroll, direction, canScrollPrevious: edges.previous, canScrollNext: edges.next, stop };
+  return {
+    rail,
+    scroll,
+    direction,
+    proximity,
+    canScrollPrevious: edges.previous,
+    canScrollNext: edges.next,
+    stop,
+    proximityHandlers: { onPointerMove, onPointerLeave },
+  };
 }

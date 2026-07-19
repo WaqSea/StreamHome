@@ -199,7 +199,10 @@
   .search-result:not(:disabled):hover .search-result__art,.ember-search__results > button:not(:disabled):hover .ember-search__art,.episode-card:not(:disabled):hover .episode-card__art { transform: scale(1.035); filter: saturate(1.1) contrast(1.03); }
   .search-result:not(:disabled):hover > span,.ember-search__results > button:not(:disabled):hover > span,.episode-card:not(:disabled):hover > span { transform: translateX(4px); }
 
-  .catalog-collection__frame:hover .catalog-rail-blade,.ember-rail__frame:hover .ember-rail__blade { opacity: .78; }
+  .catalog-collection__frame[data-edge-proximity="previous"] .catalog-rail-blade--previous,
+  .catalog-collection__frame[data-edge-proximity="next"] .catalog-rail-blade--next,
+  .ember-rail__frame[data-edge-proximity="previous"] .ember-rail__blade--previous,
+  .ember-rail__frame[data-edge-proximity="next"] .ember-rail__blade--next { opacity: .48; transform: translateY(-50%) scale(.96); }
   .catalog-rail-blade:not(:disabled):hover,.ember-rail__blade:not(:disabled):hover { opacity: .96; color: var(--accent-primary); box-shadow: 0 12px 30px rgba(0,0,0,.36),inset 0 0 18px var(--interaction-fill); }
   .catalog-rail-blade--previous:hover,.ember-rail__blade--previous:hover { transform: translate3d(-3px,-50%,0) scale(1.04); }
   .catalog-rail-blade--next:hover,.ember-rail__blade--next:hover { transform: translate3d(3px,-50%,0) scale(1.04); }
