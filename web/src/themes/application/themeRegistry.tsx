@@ -7,7 +7,6 @@ import type { ThemeId } from "../../types/theme";
 import { avatarPresetBackground } from "../../profile/profileAppearance";
 import { AuroraBackground } from "../aurora/AuroraBackground";
 import { CinemaBackground } from "../cinema/CinemaBackground";
-import { EmberBackground } from "../ember/EmberBackground";
 import { ScanLines } from "../ember/ScanLines";
 import { GeminiBackground } from "../gemini/GeminiBackground";
 import type { ThemeApplicationProps, ThemeInteractionProfile, ThemeNavigationProps, ThemePresentation } from "./contracts";
@@ -84,7 +83,7 @@ function GeminiNavigation(props: ThemeNavigationProps) {
   return <><aside className="theme-nav theme-nav--gemini" data-collapsed={collapsed}><div className="gemini-brand-row"><button className="theme-brand" onClick={() => props.onView("home")}><BrandLogo className="brand-logo--nav" showWordmark={!collapsed} /></button><button className="gemini-collapse" onClick={() => setCollapsed((value) => !value)} aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}>☰</button></div><nav aria-label="Catalog">{NAV_ITEMS.map((item) => <button key={item.view} data-active={props.activeView === item.view} onClick={() => props.onView(item.view)}><i aria-hidden="true" />{!collapsed && <span>{item.label}</span>}</button>)}{props.isAdmin && <button data-active={props.activeView === "admin"} onClick={props.onAdmin}><i aria-hidden="true" />{!collapsed && <span>Admin</span>}</button>}</nav>{!collapsed && <SearchForm initial={props.query} onSearch={props.onSearch} />}<div className="gemini-profile"><ProfileControl placement="top-start" profile={props.profile} onEditProfile={props.onEditProfile} onProfiles={props.onProfiles} onLogout={props.onLogout} /></div></aside><header className="gemini-mobile-nav"><button className="theme-brand" onClick={() => props.onView("home")}><BrandLogo className="brand-logo--nav" /></button><ProfileControl profile={props.profile} onEditProfile={props.onEditProfile} onProfiles={props.onProfiles} onLogout={props.onLogout} /></header><MobileCatalogNav activeView={props.activeView} onView={props.onView} isAdmin={props.isAdmin} /></>;
 }
 
-function EmberBackdrop() { return <><EmberBackground suspendWhenHidden respectReducedMotion /><ScanLines /></>; }
+function EmberBackdrop() { return <ScanLines />; }
 
 export interface ThemeDefinition extends ThemePresentation { Application: React.ComponentType<ThemeApplicationProps>; }
 

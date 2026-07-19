@@ -33,6 +33,11 @@ describe("theme definition registry", () => {
     expect(definitions.every((theme) => theme.motion.view && theme.motion.billboard && theme.motion.billboardTiming)).toBe(true);
   });
 
+  it("keeps the Ember backdrop free of ambient particle canvases", () => {
+    const { container } = render(React.createElement(THEME_DEFINITIONS.ember.Background));
+    expect(container.querySelector("canvas")).toBeNull();
+  });
+
   it("opens the desktop Gemini profile menu upward from the bottom sidebar", () => {
     render(React.createElement(THEME_DEFINITIONS.gemini.Navigation, navigationProps));
     fireEvent.click(screen.getAllByLabelText("Open settings for Admin")[0]);
