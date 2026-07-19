@@ -377,7 +377,13 @@
 .browse-grid .catalog-card-shell { width: 100%; min-width: 0; }
 .recommendation-feedback { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .recommendation-feedback__button { min-height: 36px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; border: 1px solid color-mix(in srgb,var(--accent-primary) 28%,var(--glass-border)); border-radius: 999px; padding: 7px 12px; background: color-mix(in srgb,var(--page-bg) 76%,transparent); color: var(--text-muted); font: 600 10px/1 var(--font-body); letter-spacing: .04em; backdrop-filter: blur(18px); transition: transform .22s var(--easing-smooth),color .22s var(--easing-smooth),border-color .22s var(--easing-smooth),background .22s var(--easing-smooth),box-shadow .22s var(--easing-smooth); }
-.recommendation-feedback__button > span { min-width: 16px; font: 700 13px/1 var(--font-mono); }
+.recommendation-feedback__icon { min-width: 17px; display: inline-flex; align-items: center; justify-content: center; }
+.recommendation-feedback__thumb { width: 17px; height: 17px; flex: 0 0 17px; filter: drop-shadow(0 0 5px color-mix(in srgb,currentColor 22%,transparent)); }
+.recommendation-feedback__thumb[data-direction="down"] { transform: rotate(180deg); }
+.recommendation-feedback__button--love .recommendation-feedback__icon { min-width: 25px; }
+.recommendation-feedback__button--love .recommendation-feedback__thumb { width: 15px; height: 15px; flex-basis: 15px; }
+.recommendation-feedback__button--love .recommendation-feedback__thumb + .recommendation-feedback__thumb { margin-left: -5px; transform: translateY(-2px); }
+.recommendation-feedback--compact .recommendation-feedback__button--love .recommendation-feedback__icon { min-width: 22px; transform: scale(.9); }
 .recommendation-feedback__button[aria-pressed="true"] { border-color: var(--accent-primary); background: color-mix(in srgb,var(--accent-primary) 22%,var(--page-bg)); color: var(--text-primary); box-shadow: 0 0 18px color-mix(in srgb,var(--accent-primary) 20%,transparent); }
 .recommendation-feedback__button--love[aria-pressed="true"] { box-shadow: 0 0 0 1px color-mix(in srgb,var(--accent-secondary) 48%,transparent),0 0 22px color-mix(in srgb,var(--accent-primary) 24%,transparent); }
 .recommendation-feedback__button--dislike[aria-pressed="true"] { border-color: #ff7b72; background: rgba(150,32,38,.22); color: #ffd4d1; }

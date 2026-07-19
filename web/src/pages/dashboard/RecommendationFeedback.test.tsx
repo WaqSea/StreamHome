@@ -14,4 +14,11 @@ describe("RecommendationFeedback", () => {
     fireEvent.click(screen.getByRole("button", { name: "Remove love for this title" }));
     await waitFor(() => expect(onChange).toHaveBeenLastCalledWith("m_1", null));
   });
+
+  it("renders one up thumb, two love thumbs, and one down thumb", () => {
+    render(<RecommendationFeedback movieId="m_1" preference={null} onChange={vi.fn().mockResolvedValue(undefined)} />);
+    expect(screen.getByRole("button", { name: "Set like for this title" }).querySelectorAll('[data-direction="up"]')).toHaveLength(1);
+    expect(screen.getByRole("button", { name: "Set love for this title" }).querySelectorAll('[data-direction="up"]')).toHaveLength(2);
+    expect(screen.getByRole("button", { name: "Set dislike for this title" }).querySelectorAll('[data-direction="down"]')).toHaveLength(1);
+  });
 });
