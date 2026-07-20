@@ -71,5 +71,5 @@ Please check out our comprehensive documentation folder. Almost every problem an
 Created and maintained by **waqsea**. 
 
 If you have any questions, business inquiries, or just want to suggest a feature:
-* **Email:** [contact@waqsea.com](mailto:contact@waqsea.com)
-* **GitHub:** [@waqsea](https://github.com/waqsea)
+* **Email:** [contact@waqsea.com](mailto:streamhome@waqsea.com)
+* **GitHub:** [@waqsea](https://github.com/StreamHome)
