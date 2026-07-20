@@ -24,6 +24,15 @@ StreamHome bridges the gap between premium VOD streaming experiences and the fre
 8. 🗜️ **Automated HEVC Optimization:** A smart background transcoding system that converts media to HEVC (H.265) to save server storage space. It strictly runs only when the system is idle and automatically pauses the moment a user connects to the web interface, ensuring zero performance impact.
 9. 🛡️ **Failsafe Recovery Architecture:** Guarantees zero data loss even in the event of total database corruption. Built around localized `metadata.json` records kept alongside media files, and an automated backup of the `database.db` file to both the local disk and Google Drive.
 
+## ⚙️ How it Works
+
+StreamHome is designed to deliver a zero-wait streaming experience while handling complex server-side processing completely in the background. 
+
+1. 📥 **Capture & Send:** Find a video/audio source anywhere on the web. Using our official [Chrome](https://github.com/WaqSea/StreamHome-Extension-Chrome) or [Firefox](https://github.com/WaqSea/StreamHome-Extension-Firefox) extensions, easily capture the raw URL and send it directly to your StreamHome server with a single click.
+2. ⚡ **Instant Playback (Zero Delay):** No need to wait for downloads! StreamHome instantly starts playing the media directly from the incoming source URL. You start watching immediately with absolutely zero delay.
+3. 🔀 **Seamless Handoff:** While you are enjoying the stream, the ASGI backend silently downloads the file in the background. The exact moment the download completes, the player flawlessly transitions playback to the local file—without a single interruption or buffering screen. You won't even notice the switch.
+4. ☁️ **Metadata & Cloud Sync:** Once the file is local, the system fetches rich TMDB metadata, organizes your catalog, and natively syncs the final media to your Google Drive via Rclone (with optional idle-time HEVC compression to save space).
+
 ## 🖥️ Server Recommendations
 
 StreamHome is designed to be highly optimized, but running real-time FFmpeg processing and background HEVC compression performs best with the following specifications:
