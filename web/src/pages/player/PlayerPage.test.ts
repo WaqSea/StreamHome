@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Episode } from "../../types/api";
-import { nextPlayableEpisode } from "./PlayerPage";
+import { advancingPlaybackDelta, nextPlayableEpisode } from "./PlayerPage";
 
 function episode(id: string, seasonNumber: number, episodeNumber: number, videoUrl = `/media/${id}.mp4`): Episode {
   return { id, seasonNumber, episodeNumber, videoUrl, title: id, description: "", thumbnailUrl: "", duration: "", quality: "", languages: [], subtitles: [], skipMarkers: {} };
@@ -16,5 +16,18 @@ describe("series playback sequence", () => {
   it("returns no episode at the end of the playable sequence", () => {
     expect(nextPlayableEpisode([episode("ep1", 1, 1)], "ep1")).toBeNull();
     expect(nextPlayableEpisode([episode("ep1", 1, 1)], "missing")).toBeNull();
+  });
+});
+
+describe("actual watched-time accounting", () => {
+  it("counts bounded advancing playback but ignores pauses, rewinds, and forward seeks", () => {
+    expect(advancingPlaybackDelta(1_000, 10, 2_000, 11, true)).toBe(1);
+    expect(advancingPlaybackDelta(1_000, 10, 2_000, 11, false)).toBe(0);
+    expect(advancingPlaybackDelta(1_000, 10, 2_000, 9, true)).toBe(0);
+    expect(advancingPlaybackDelta(1_000, 10, 2_000, 40, true)).toBe(0);
+  });
+
+  it("never attributes more than two seconds to one delayed browser update", () => {
+    expect(advancingPlaybackDelta(1_000, 10, 11_000, 12, true)).toBe(2);
   });
 });

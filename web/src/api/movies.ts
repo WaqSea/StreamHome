@@ -72,8 +72,8 @@ export async function getMovie(mediaId: string, signal?: AbortSignal): Promise<M
 export const search = (query: string, signal?: AbortSignal) => apiGet<DiscoverMovie[]>(`/api/search?query=${encodeURIComponent(query)}`, { signal });
 export const discover = (category: string, type: string) => apiGet<DiscoverMovie[]>(`/api/discover?category=${encodeURIComponent(category)}&type=${encodeURIComponent(type)}`);
 
-export async function getEpisodes(tmdbId: number | string): Promise<Episode[]> {
-  const response = await apiGet<Partial<Episode>[]>(`/api/series/${tmdbId}/episodes`);
+export async function getEpisodes(tmdbId: number | string, signal?: AbortSignal): Promise<Episode[]> {
+  const response = await apiGet<Partial<Episode>[]>(`/api/series/${tmdbId}/episodes`, { signal });
   return response.map(normalizeEpisode);
 }
 

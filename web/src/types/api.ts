@@ -248,3 +248,74 @@ export interface DiscoverMovie {
   localBannerUrl?: string | null;
   cacheState?: MediaCacheState | null;
 }
+
+export interface PlaybackAudioTrack {
+  id: string;
+  label: string;
+  language: string;
+  channels: number;
+  default: boolean;
+  ready: boolean;
+}
+
+export interface PlaybackSourceMetadata {
+  duration: number;
+  container: string;
+  codec: string;
+  width: number;
+  height: number;
+  frameRate: number;
+}
+
+export interface PlaybackRendition {
+  id: string;
+  label: string;
+  height: number;
+  width: number;
+  original: boolean;
+  ready: boolean;
+}
+
+export interface PlaybackSubtitleTrack {
+  id: string;
+  language: string;
+  label: string;
+}
+
+export type PlaybackPreparationState = "preparing" | "ready" | "error";
+export type PlaybackProgressEvent = "heartbeat" | "pause" | "seek" | "visibility" | "exit" | "ended";
+
+export interface PlaybackProgressRequest {
+  timestamp: number;
+  durationWatched: number;
+  isFinished: boolean;
+  sequenceNumber: number;
+  event: PlaybackProgressEvent;
+}
+
+export interface PlaybackProgressResponse {
+  status: "ok" | "finished" | "sticky_finished";
+  viewingSessionId?: string;
+  acceptedSeconds?: number;
+  nextSequenceNumber: number;
+}
+
+export interface PlaybackRunResponse {
+  runId: string;
+  mediaId: string;
+  movieId: string;
+  episodeId: string | null;
+  resumePosition: number;
+  sourceMetadata: PlaybackSourceMetadata;
+  tracks: PlaybackAudioTrack[];
+  renditions: PlaybackRendition[];
+  subtitles: PlaybackSubtitleTrack[];
+  ticket: string;
+  ticketExpiresAt: number;
+  manifestUrl: string | null;
+  progressiveUrl: string;
+  nextEpisodeId: string | null;
+  preparationState: PlaybackPreparationState;
+  preparationError: { code: string; message: string } | null;
+  nextSequenceNumber: number;
+}

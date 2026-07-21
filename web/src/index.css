@@ -8,6 +8,97 @@
   }
 }
 
+/* Adaptive player controls remain behaviorally identical across themes while inheriting each theme accent. */
+.player-control-button,
+.player-control-select {
+  min-height: 2.35rem;
+  border: 1px solid color-mix(in srgb, var(--accent-container, #f97316) 26%, rgba(255, 255, 255, 0.16));
+  border-radius: 0.55rem;
+  background: rgba(7, 7, 9, 0.72);
+  color: rgba(255, 255, 255, 0.86);
+  padding: 0.45rem 0.7rem;
+  font-size: 0.78rem;
+  line-height: 1;
+  backdrop-filter: blur(12px);
+  transition: border-color 150ms ease, background-color 150ms ease, color 150ms ease, transform 150ms ease;
+}
+
+.player-control-button:hover,
+.player-control-select:hover {
+  border-color: color-mix(in srgb, var(--accent-container, #f97316) 58%, white 8%);
+  background: color-mix(in srgb, var(--accent-container, #f97316) 15%, rgba(7, 7, 9, 0.88));
+  color: white;
+  transform: translateY(-1px);
+}
+
+.player-control-button:focus-visible,
+.player-control-select:focus-visible,
+.player-timeline:focus-visible {
+  outline: 2px solid var(--accent-container, #f97316);
+  outline-offset: 3px;
+}
+
+.player-view video::cue {
+  color: white;
+  background: rgba(0, 0, 0, 0.78);
+  font-size: calc(1em * var(--caption-scale, 1));
+  line-height: 1.35;
+  text-shadow: 0 1px 3px black;
+}
+
+.catalog-card-shell,
+.ember-media-card-shell {
+  position: relative;
+}
+
+.catalog-card__resume,
+.ember-media-card__resume {
+  position: absolute;
+  z-index: 8;
+  right: 0.65rem;
+  bottom: 0.65rem;
+  border: 1px solid color-mix(in srgb, var(--accent-container, #f97316) 58%, transparent);
+  border-radius: 0.45rem;
+  background: rgba(5, 5, 7, 0.88);
+  color: white;
+  padding: 0.42rem 0.62rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.35);
+  transition: transform 150ms ease, background-color 150ms ease, border-color 150ms ease;
+}
+
+.catalog-card__resume:hover,
+.ember-media-card__resume:hover,
+.catalog-card__resume:focus-visible,
+.ember-media-card__resume:focus-visible {
+  border-color: var(--accent-container, #f97316);
+  background: color-mix(in srgb, var(--accent-container, #f97316) 22%, rgba(5, 5, 7, 0.94));
+  transform: translateY(-2px);
+  outline: none;
+}
+
+@media (max-width: 640px) {
+  .player-control-button,
+  .player-control-select {
+    min-height: 2.65rem;
+    padding-inline: 0.78rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .player-control-button,
+  .player-control-select {
+    transition-duration: 1ms;
+  }
+
+  .player-control-button:hover,
+  .player-control-select:hover {
+    transform: none;
+  }
+}
+
 html, body {
   min-height: 100%;
   width: 100%;
