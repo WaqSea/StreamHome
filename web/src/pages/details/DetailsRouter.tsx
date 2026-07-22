@@ -3,26 +3,30 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useLocation, useNavigate } from "react-router-dom";
 import { getEpisodes } from "../../api/movies";
 import { toggleWatchlist } from "../../api/watchlist";
+import { MediaActionIcon } from "../../components/media/MediaActionIcon";
 import { MediaArtwork } from "../../components/media/MediaArtwork";
 import { appUrl, parseAppQuery } from "../../navigation/queryState";
 import { useProfileStore } from "../../stores/profileStore";
 import { useThemeStore } from "../../stores/themeStore";
 import { getThemeDefinition } from "../../themes/application/themeRegistry";
-import type { Episode, Movie } from "../../types/api";
+import type { Episode, Movie, PlaybackSession } from "../../types/api";
+import { formatDuration } from "../../utils/format";
 import { isAvailableMedia, isPlayableMovie, mediaAvailability, tmdbIdFromMovie } from "../../utils/media";
 import { AnimatedState, CONTENT_REVEAL, CONTENT_STAGGER, MOTION_EASE, MOTION_TIMINGS, useAppMotion } from "../../motion/motionSystem";
 import { AvailabilityBadge } from "../dashboard/RecommendationMeta";
 import { RecommendationFeedback, useRecommendationFeedback } from "../dashboard/RecommendationFeedback";
+import { detailsResumeTarget } from "./detailsPlayback";
 
 interface DetailsRouterProps {
   movie: Movie;
   onClose: () => void;
   isWatchlisted: boolean;
+  sessions: PlaybackSession[];
   onWatchlistChange: (ids: string[]) => void;
   onRecommendationInvalidated?: () => void;
 }
 
-export function DetailsRouter({ movie, onClose, isWatchlisted, onWatchlistChange, onRecommendationInvalidated }: DetailsRouterProps) {
+export function DetailsRouter({ movie, onClose, isWatchlisted, sessions, onWatchlistChange, onRecommendationInvalidated }: DetailsRouterProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const profile = useProfileStore((state) => state.activeProfile)!;
@@ -59,6 +63,7 @@ export function DetailsRouter({ movie, onClose, isWatchlisted, onWatchlistChange
   const selectedSeason = query.season && seasons.includes(query.season) ? query.season : seasons[0];
   const visibleEpisodes = episodes.filter((episode) => episode.seasonNumber === selectedSeason);
   const playable = available && isPlayableMovie({ ...movie, episodes });
+  const resumeTarget = useMemo(() => detailsResumeTarget(movie, episodes, sessions), [episodes, movie, sessions]);
 
   useEffect(() => {
     if (movie.type !== "series" || !available || !seasons.length || query.season === selectedSeason) return;
@@ -89,7 +94,7 @@ export function DetailsRouter({ movie, onClose, isWatchlisted, onWatchlistChange
     : !playable ? "Playback is unavailable because the server did not provide a playable media file." : "");
 
   return <motion.article className="details-view" data-details-theme={definition.detailsVariant} variants={CONTENT_STAGGER} initial="hidden" animate="shown">
-    <motion.button variants={CONTENT_REVEAL} className="details-close" onClick={close}>Close / Back</motion.button>
+    <motion.button variants={CONTENT_REVEAL} className="details-close" onClick={close}><MediaActionIcon name="back" /><span>Back</span></motion.button>
     <motion.section variants={CONTENT_REVEAL} className="details-hero">
       <motion.div className="details-backdrop" initial={reduced ? { opacity: 0 } : { opacity: 0, scale: 1.06 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: reduced ? MOTION_TIMINGS.reduced : MOTION_TIMINGS.billboard, ease: MOTION_EASE }}><MediaArtwork src={movie.bannerUrl || movie.thumbnailUrl} alt={movie.title} media={movie} className="h-full w-full object-cover" /></motion.div>
       <AvailabilityBadge movie={movie} />
@@ -103,15 +108,19 @@ export function DetailsRouter({ movie, onClose, isWatchlisted, onWatchlistChange
         {movie.description && <motion.p variants={CONTENT_REVEAL} className="details-description">{movie.description}</motion.p>}
         {movie.genres.length > 0 && <motion.div variants={CONTENT_REVEAL} className="details-genres">{movie.genres.map((genre) => <span key={genre}>{genre}</span>)}</motion.div>}
         <motion.div variants={CONTENT_REVEAL} className="feature-actions">
-          {movie.type === "movie" && <button className="feature-action feature-action--primary" disabled={!playable} onClick={() => play(movie.id)}>{available ? "Play now" : "Playback unavailable"}</button>}
-          <motion.button layout className="feature-action" disabled={savingWatchlist} onClick={() => void updateWatchlist()}>{savingWatchlist ? "Updating…" : isWatchlisted ? "Remove from watchlist" : "Add to watchlist"}</motion.button>
+          {movie.type === "movie" && <button className="feature-action feature-action--primary details-playback-action" disabled={!playable} onClick={() => play(movie.id)}><MediaActionIcon name={resumeTarget ? "resume" : "play"} /><span>{available ? resumeTarget?.label ?? "Play now" : "Playback unavailable"}</span></button>}
+          {movie.type === "series" && resumeTarget && <button className="feature-action feature-action--primary details-playback-action" disabled={!playable} onClick={() => play(resumeTarget.mediaId)}><MediaActionIcon name="resume" /><span>{resumeTarget.label}</span><small>{resumeTarget.context}</small></button>}
+          <motion.button layout className="feature-action details-watchlist-action" disabled={savingWatchlist} onClick={() => void updateWatchlist()}><MediaActionIcon name={isWatchlisted ? "bookmark-remove" : "bookmark-add"} /><span>{savingWatchlist ? "Updating…" : isWatchlisted ? "Remove from watchlist" : "Add to watchlist"}</span></motion.button>
         </motion.div>
         <AnimatePresence mode="wait">{feedback && <motion.p key={feedback} className="details-warning" initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: MOTION_TIMINGS.notice }}>{feedback}</motion.p>}</AnimatePresence>
       </motion.div>
     </motion.section>
     {movie.type === "series" && <motion.section variants={CONTENT_REVEAL} className="episode-browser">
       <header><div><p>EPISODE INDEX</p><h2>Seasons and episodes</h2></div>{available && <div className="season-tabs">{seasons.map((season) => <motion.button layout key={season} data-active={selectedSeason === season} onClick={() => selectSeason(season)}>Season {season}</motion.button>)}</div>}</header>
-      <AnimatedState stateKey={stateKey}>{!available ? <p className="episode-state">Episode playback will appear after this cached suggestion becomes available on the server.</p> : loadingEpisodes ? <p className="episode-state">Loading episodes from the server...</p> : !visibleEpisodes.length ? <p className="episode-state">No episodes are available from the server.</p> : <motion.div variants={CONTENT_STAGGER} initial="hidden" animate="shown" className="episode-grid">{visibleEpisodes.map((episode) => <motion.button layout variants={CONTENT_REVEAL} key={episode.id} className="episode-card" disabled={!episode.videoUrl} onClick={() => play(episode.id)}><MediaArtwork src={episode.thumbnailUrl} alt={episode.title} media={movie} episode={episode} className="episode-card__art" /><span><small>EPISODE {episode.episodeNumber}</small><strong>{episode.title}</strong><p>{episode.description || "No server description available."}</p><i>{episode.videoUrl ? episode.duration : "Unavailable on server"}</i></span></motion.button>)}</motion.div>}</AnimatedState>
+      <AnimatedState stateKey={stateKey}>{!available ? <p className="episode-state">Episode playback will appear after this cached suggestion becomes available on the server.</p> : loadingEpisodes ? <p className="episode-state">Loading episodes from the server...</p> : !visibleEpisodes.length ? <p className="episode-state">No episodes are available from the server.</p> : <motion.div variants={CONTENT_STAGGER} initial="hidden" animate="shown" className="episode-grid">{visibleEpisodes.map((episode) => {
+        const resumesHere = resumeTarget?.mediaId === episode.id;
+        return <motion.button layout variants={CONTENT_REVEAL} key={episode.id} className="episode-card" data-resumable={resumesHere || undefined} disabled={!episode.videoUrl} onClick={() => play(episode.id)}><MediaArtwork src={episode.thumbnailUrl} alt={episode.title} media={movie} episode={episode} className="episode-card__art" /><span><small>EPISODE {episode.episodeNumber}</small><strong>{episode.title}</strong><p>{episode.description || "No server description available."}</p><i>{episode.videoUrl ? episode.duration : "Unavailable on server"}</i><span className="episode-card__action"><MediaActionIcon name={resumesHere ? "resume" : "episode"} /><b>{resumesHere ? `Resume from ${formatDuration(resumeTarget.session.timestamp)}` : "Play episode"}</b></span></span></motion.button>;
+      })}</motion.div>}</AnimatedState>
     </motion.section>}
   </motion.article>;
 }
