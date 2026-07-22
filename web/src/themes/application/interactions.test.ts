@@ -88,7 +88,8 @@ describe("semantic hover interaction system", () => {
 
   it("centers playback action icons together with their labels", () => {
     expect(application).toContain(".details-playback-action { display: grid; grid-template-columns: auto auto; align-items: center; justify-content: center; column-gap: 9px; text-align: left; }");
-    expect(application).toContain(".details-playback-action .media-action-icon { grid-row: 1 / 3; }");
+    expect(application).toContain(".details-playback-action .media-action-icon { grid-row: auto; align-self: center; }");
+    expect(application).toContain(".details-playback-action--context .media-action-icon { grid-row: 1 / 3; }");
   });
 
   it("covers every major interactive surface", () => {
