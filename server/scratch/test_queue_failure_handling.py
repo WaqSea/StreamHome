@@ -11,6 +11,10 @@ from services.ingestion_errors import (
     sanitize_url,
     write_task_diagnostics,
 )
+from services.ffmpeg_input import ffmpeg_network_input_options, is_hls_media_source
+from services.media_source import MediaSourceError, catalog_path_from_storage
+from services.audio_extractor import audio_track_labels
+from config import settings
 
 
 def test_failure_classification() -> None:
@@ -33,6 +37,61 @@ def test_failure_classification() -> None:
     timeout = classify_failure("Connection timed out while opening input")
     assert timeout.code == "SOURCE_UNREACHABLE"
     assert timeout.retryable
+
+    unsupported_option = classify_failure("Option extension_picky not found.\nError opening input files: Option not found")
+    assert unsupported_option.code == "FFMPEG_OPTION_UNSUPPORTED"
+    assert not unsupported_option.retryable
+
+
+def test_ffmpeg_input_options_are_source_specific() -> None:
+    direct_options = ffmpeg_network_input_options("http://127.0.0.1:9000/video.mp4")
+    assert "-protocol_whitelist" in direct_options
+    assert "-allowed_extensions" not in direct_options
+    assert "-extension_picky" not in direct_options
+
+    manifest_options = ffmpeg_network_input_options("https://sender.example/master.m3u8?token=secret")
+    assert is_hls_media_source("https://sender.example/master.m3u8?token=secret")
+    assert "-allowed_extensions" in manifest_options
+    assert "-extension_picky" in manifest_options
+
+    query_manifest_options = ffmpeg_network_input_options("https://sender.example/play?format=m3u8")
+    assert "-allowed_extensions" in query_manifest_options
+
+    assert ffmpeg_network_input_options("C:/media/video.mp4") == []
+
+
+def test_storage_paths_become_canonical_media_urls() -> None:
+    original_media_dir = settings.MEDIA_DIR
+    original_temp_dir = settings.TEMP_DIR
+    try:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            settings.MEDIA_DIR = str(root / "media")
+            settings.TEMP_DIR = str(root / "temp")
+            movie_file = root / "media" / "Movies" / "Movie_TMDB_1" / "movie.mp4"
+            episode_file = root / "temp" / "Series" / "Show_TMDB_2" / "Season_1" / "Episode_1" / "episode.mp4"
+
+            assert catalog_path_from_storage(str(movie_file)) == "/media/Movies/Movie_TMDB_1/movie.mp4"
+            assert catalog_path_from_storage(str(episode_file)) == "/media/Series/Show_TMDB_2/Season_1/Episode_1/episode.mp4"
+            try:
+                catalog_path_from_storage(str(root / "outside" / "video.mp4"))
+            except MediaSourceError:
+                pass
+            else:
+                raise AssertionError("An out-of-storage media path must be rejected")
+    finally:
+        settings.MEDIA_DIR = original_media_dir
+        settings.TEMP_DIR = original_temp_dir
+
+
+def test_audio_track_labels_are_stable_across_reingestion() -> None:
+    streams = [
+        {"tags": {"language": "eng"}},
+        {"tags": {"language": "eng"}},
+        {"tags": {"language": "und"}},
+    ]
+    assert audio_track_labels(streams, "en") == ["eng", "eng_1", "track_2"]
+    assert audio_track_labels([{"tags": {}}], "en") == ["en"]
 
 
 def test_compact_and_redacted_diagnostics() -> None:
@@ -75,10 +134,15 @@ def test_queue_contracts() -> None:
     assert ".part{output_ext" in ffmpeg_source
     assert "preserve_local_media" in route_source
     assert "preserve_local_episode" in route_source
+    assert queue_source.index("await self._catalog_media") < queue_source.index('task.status = "COMPLETED"')
+    assert "CATALOG_UPDATE_FAILED" in queue_source
 
 
 if __name__ == "__main__":
     test_failure_classification()
+    test_ffmpeg_input_options_are_source_specific()
+    test_storage_paths_become_canonical_media_urls()
+    test_audio_track_labels_are_stable_across_reingestion()
     test_compact_and_redacted_diagnostics()
     test_diagnostics_file_redacts_secrets()
     test_queue_contracts()

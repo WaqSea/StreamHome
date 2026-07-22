@@ -81,6 +81,19 @@ def local_path_for(catalog_path: str) -> Path:
     return (Path(settings.MEDIA_DIR).resolve() / Path(*parts)).resolve()
 
 
+def catalog_path_from_storage(file_path: str) -> str:
+    """Convert an absolute media/temp file into its canonical ``/media`` URL."""
+
+    candidate = Path(file_path).resolve()
+    for storage_root in (Path(settings.MEDIA_DIR).resolve(), Path(settings.TEMP_DIR).resolve()):
+        try:
+            relative = candidate.relative_to(storage_root)
+        except ValueError:
+            continue
+        return canonicalize_catalog_path(f"{CANONICAL_MEDIA_PREFIX}{relative.as_posix()}")
+    raise MediaSourceError("Completed media file is outside the configured media and temp directories")
+
+
 def cloud_path_for(catalog_path: str) -> str:
     canonical = canonicalize_catalog_path(catalog_path)
     relative = canonical[len(CANONICAL_MEDIA_PREFIX):]

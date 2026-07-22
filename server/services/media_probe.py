@@ -9,6 +9,7 @@ from typing import Dict, Any, Optional
 from config import settings
 from services.logger import logger
 from services.ingestion_errors import IngestionFailure, classify_failure, compact_diagnostics, sanitize_url, write_task_diagnostics
+from services.ffmpeg_input import ffmpeg_network_input_options, is_http_media_source
 
 async def probe_media_stream(
     video_url: str,
@@ -32,11 +33,10 @@ async def probe_media_stream(
             
         cmd = [ffprobe_path, "-v", "error", "-show_entries", "stream=codec_type,height,width", "-of", "json"]
         
-        is_http = url.lower().startswith(("http://", "https://"))
+        is_http = is_http_media_source(url)
         if headers_str.strip() and is_http:
             cmd.extend(["-headers", headers_str])
-        if is_http:
-            cmd.extend(["-protocol_whitelist", "http,https,tcp,tls,crypto,dns", "-allowed_extensions", "ALL", "-extension_picky", "0"])
+        cmd.extend(ffmpeg_network_input_options(url))
         cmd.append(url)
         
         logger.info(f"[Media Probe] Probing source: {sanitize_url(url)[:120]}")

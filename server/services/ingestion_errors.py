@@ -64,7 +64,7 @@ def compact_diagnostics(value: str, limit: int = 280) -> str:
 def classify_failure(diagnostics: str, default_code: str = "MEDIA_PROCESSING_FAILED") -> IngestionFailure:
     text = redact_diagnostics(diagnostics)
     lowered = text.lower()
-    if "not found" in lowered or re.search(r"(?:http error|returned)\s+404\b", lowered):
+    if re.search(r"(?:http(?: error)?|server returned|returned)\s+404\b", lowered) or re.search(r"\b404\s+not found\b", lowered):
         return IngestionFailure("SOURCE_NOT_FOUND", "The media sender source returned HTTP 404.")
     if "unauthorized" in lowered or re.search(r"(?:http error|returned)\s+401\b", lowered):
         return IngestionFailure("SOURCE_UNAUTHORIZED", "The media sender source rejected authentication.")
@@ -78,6 +78,8 @@ def classify_failure(diagnostics: str, default_code: str = "MEDIA_PROCESSING_FAI
         return IngestionFailure("SOURCE_UNREACHABLE", "The media sender source could not be reached.", True)
     if any(marker in lowered for marker in ("invalid data", "does not contain any stream", "unsupported codec", "unsupported format")):
         return IngestionFailure("INVALID_MEDIA_SOURCE", "The source does not contain supported playable media.")
+    if any(marker in lowered for marker in ("unrecognized option", "option not found", "error parsing options")) or re.search(r"option\s+[^\r\n]+\s+not found", lowered):
+        return IngestionFailure("FFMPEG_OPTION_UNSUPPORTED", "FFmpeg rejected an input option required by the ingestion pipeline.")
     if any(marker in lowered for marker in ("no such file or directory", "the system cannot find the file", "winerror 2")):
         return IngestionFailure("FFMPEG_UNAVAILABLE", "FFmpeg or a required local executable could not be found.")
     return IngestionFailure(default_code, compact_diagnostics(text), True)

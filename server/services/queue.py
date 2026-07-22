@@ -19,7 +19,7 @@ from services.logger import logger
 from services.media_probe import probe_media_stream, notify_video_sender, probe_completed_media
 from services.ingestion_errors import IngestionFailure, IngestionTaskError, prune_task_diagnostics, write_task_diagnostics
 from services.rclone import rclone_service
-from services.media_source import MediaSourceError, resolve_media_source
+from services.media_source import MediaSourceError, catalog_path_from_storage, resolve_media_source
 
 def srt_to_vtt(srt_path: str, vtt_path: str) -> bool:
     """
@@ -414,15 +414,22 @@ class DownloadQueueManager:
                     remove_task_metrics(task_id)
                     return
                     
+                try:
+                    await self._catalog_media(db, tmdb_id, media_type, season, episode, meta, output_rel_path, extracted_languages, language, subtitles_list, quality, task.skip_markers)
+                except Exception as cat_err:
+                    diagnostics_path = write_task_diagnostics(task_id, "catalog", traceback.format_exc())
+                    raise IngestionTaskError(
+                        IngestionFailure(
+                            "CATALOG_UPDATE_FAILED",
+                            f"The downloaded media could not be committed to the catalog ({type(cat_err).__name__}).",
+                            False,
+                            diagnostics_path,
+                        )
+                    ) from cat_err
                 task.status = "COMPLETED"
                 task.error_message = None
                 db.add(task)
                 await db.commit()
-
-                try:
-                    await self._catalog_media(db, tmdb_id, media_type, season, episode, meta, output_rel_path, extracted_languages, language, subtitles_list, quality, task.skip_markers)
-                except Exception as cat_err:
-                    logger.error(f"[Queue Manager] Error cataloging media: {cat_err}")
                 created_artifacts.clear()
                     
         except IngestionTaskError as err:
@@ -510,7 +517,7 @@ class DownloadQueueManager:
             if media_obj.source_fingerprint != source.fingerprint:
                 media_obj.source_fingerprint = source.fingerprint
                 db.add(media_obj)
-                await db.commit()
+                await db.flush()
             await playback_prep_service.prepare(media_obj.id, media_obj, source, include_remaining=False)
         except Exception as exc:
             logger.warning(
@@ -568,12 +575,11 @@ class DownloadQueueManager:
                     except Exception as e:
                         logger.error(f"[Queue Manager] Failed to rename folder/file {current_folder_name}: {e}")
 
-            virtual_path = file_path
-            if virtual_path.startswith("temp/"):
-                virtual_path = "media/" + virtual_path[5:]
-            served_url = "/" + virtual_path.replace("\\", "/")
-        
-        abs_file_path = os.path.abspath(os.path.join(server_root, virtual_path))
+            file_candidate = os.path.abspath(file_path) if os.path.isabs(file_path) else os.path.abspath(os.path.join(server_root, file_path))
+            served_url = catalog_path_from_storage(file_candidate)
+            virtual_path = served_url.lstrip("/")
+
+        abs_file_path = os.path.abspath(file_candidate) if file_path else ""
         
         if media_type == "movie":
             main_folder_rel = os.path.dirname(virtual_path)
@@ -650,7 +656,7 @@ class DownloadQueueManager:
                 movie.skip_markers = skip_data
                 movie.audio_metadata = audio_meta_list
                 db.add(movie)
-                await db.commit()
+                await db.flush()
                 logger.info(f"[Queue Manager] Cataloged new movie: {meta.get('title', 'Unknown Movie')}")
             else:
                 movie.title = meta.get("title", movie.title)
@@ -684,7 +690,7 @@ class DownloadQueueManager:
                 movie.source_fingerprint = source_fingerprint
                 movie.audio_metadata = audio_meta_list
                 db.add(movie)
-                await db.commit()
+                await db.flush()
                 logger.info(f"[Queue Manager] Updated existing movie details: {movie.title}")
 
             movie_metadata_dir = os.path.join(movie_folder_abs, ".metadata")
@@ -734,7 +740,7 @@ class DownloadQueueManager:
                 show.genres = meta.get("genres", [])
                 show.cast = meta.get("cast", [])
                 db.add(show)
-                await db.commit()
+                await db.flush()
                 logger.info(f"[Queue Manager] Cataloged new TV show: {meta.get('title', 'Unknown Show')}")
             else:
                 show.title = meta.get("title", show.title)
@@ -751,7 +757,7 @@ class DownloadQueueManager:
                 show.vote_average = meta.get("vote_average", show.vote_average)
                 show.vote_count = meta.get("vote_count", show.vote_count)
                 db.add(show)
-                await db.commit()
+                await db.flush()
                 logger.info(f"[Queue Manager] Updated TV show: {show.title}")
                 
             season_num = season or 1
@@ -846,7 +852,7 @@ class DownloadQueueManager:
             show.catalog_source = "server"
             show.availability = "available"
             db.add(show)
-            await db.commit()
+            await db.flush()
 
             ep_metadata_dir = os.path.join(ep_folder_abs, ".metadata")
             os.makedirs(ep_metadata_dir, exist_ok=True)

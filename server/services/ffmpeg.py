@@ -12,6 +12,7 @@ from typing import Dict, Any, Optional
 from services.state import update_task_metrics, remove_task_metrics, register_process, unregister_process, ACTIVE_PROCESSES
 from services.logger import logger
 from services.ingestion_errors import IngestionFailure, classify_failure, sanitize_url, write_task_diagnostics
+from services.ffmpeg_input import ffmpeg_network_input_options, is_http_media_source
 
 # Regular expressions for parsing FFmpeg stderr progress
 time_regex = re.compile(r"time=\s*(\d{2}):(\d{2}):(\d{2}(?:\.\d+)?)")
@@ -197,19 +198,17 @@ async def download_and_merge(
     ffmpeg_path = shutil.which("ffmpeg") or r"C:\ffmpeg\bin\ffmpeg.exe"
     cmd = [ffmpeg_path, "-y"]
     
-    is_video_http = video_url.lower().startswith(("http://", "https://"))
+    is_video_http = is_http_media_source(video_url)
     if headers_str.strip() and is_video_http:
         cmd.extend(["-headers", headers_str])
-    if is_video_http:
-        cmd.extend(["-protocol_whitelist", "http,https,tcp,tls,crypto,dns", "-allowed_extensions", "ALL", "-extension_picky", "0"])
+    cmd.extend(ffmpeg_network_input_options(video_url))
     cmd.extend(["-i", video_url])
     
     if audio_url:
-        is_audio_http = audio_url.lower().startswith(("http://", "https://"))
-        if is_audio_http:
-            cmd.extend(["-protocol_whitelist", "http,https,tcp,tls,crypto,dns", "-allowed_extensions", "ALL", "-extension_picky", "0"])
+        is_audio_http = is_http_media_source(audio_url)
         if headers_str.strip() and is_audio_http:
             cmd.extend(["-headers", headers_str])
+        cmd.extend(ffmpeg_network_input_options(audio_url))
         # faststart eklendi
         cmd.extend(["-i", audio_url, "-c:v", "copy", "-c:a", "copy", "-movflags", "+faststart", "-map", "0:v:0", "-map", "1:a:0", "-shortest"])
     else:

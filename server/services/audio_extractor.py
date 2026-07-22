@@ -12,6 +12,25 @@ def get_ffmpeg_path() -> str:
 def get_ffprobe_path() -> str:
     return shutil.which("ffprobe") or r"C:\ffmpeg\bin\ffprobe.exe"
 
+
+def audio_track_labels(streams: List[Dict[str, Any]], default_lang: str = "en") -> List[str]:
+    """Return stable, unique filenames for the source's current audio layout."""
+
+    labels: List[str] = []
+    for idx, stream in enumerate(streams):
+        tags = stream.get("tags", {})
+        lang = "".join(c for c in str(tags.get("language", "")).lower() if c.isalnum())
+        if not lang or lang == "und":
+            lang = default_lang if idx == 0 else f"track_{idx}"
+
+        base_lang = lang
+        duplicate = 1
+        while lang in labels:
+            lang = f"{base_lang}_{duplicate}"
+            duplicate += 1
+        labels.append(lang)
+    return labels
+
 async def extract_audio_and_strip_video(video_path: str, default_lang: str = "en") -> List[str]:
     """
     Probes the video file for audio streams. Extracts each stream to a separate MP3 file
@@ -62,22 +81,11 @@ async def extract_audio_and_strip_video(video_path: str, default_lang: str = "en
     languages: List[str] = []
     logger.info(f"[Audio Extractor] Found {len(streams)} audio streams. Extracting...")
     
-    # 3. Extract each audio stream
-    for idx, stream in enumerate(streams):
-        tags = stream.get("tags", {})
-        lang = tags.get("language", "").lower()
-        # Clean language name (should be short code like 'en', 'tr', etc.)
-        lang = "".join(c for c in lang if c.isalnum())
-        if not lang or lang == "und":
-            lang = default_lang if idx == 0 else f"track_{idx}"
-            
-        # Avoid file conflicts (e.g. two english tracks)
-        base_lang = lang
-        dup_count = 1
-        while lang in languages or os.path.exists(os.path.join(audio_dir, f"{lang}.mp3")):
-            lang = f"{base_lang}_{dup_count}"
-            dup_count += 1
-            
+    # 3. Extract each audio stream using deterministic names. FFmpeg's -y
+    # refreshes the current track instead of inventing en_1, en_2,
+    # and so on each time the same title is re-ingested.
+    expected_languages = audio_track_labels(streams, default_lang)
+    for idx, lang in enumerate(expected_languages):
         audio_out_path = os.path.join(audio_dir, f"{lang}.mp3")
         
         # ffmpeg extract command: -map 0:a:idx
@@ -103,5 +111,15 @@ async def extract_audio_and_strip_video(video_path: str, default_lang: str = "en
                 logger.error(f"[Audio Extractor] Extraction failed for track {idx}: {stderr_ext.decode('utf-8', errors='ignore')}")
         except Exception as e:
             logger.error(f"[Audio Extractor] Extraction exception for track {idx}: {e}")
+
+    if len(languages) == len(expected_languages):
+        expected_files = {f"{lang}.mp3" for lang in expected_languages}
+        for existing_name in os.listdir(audio_dir):
+            if existing_name.lower().endswith(".mp3") and existing_name not in expected_files:
+                try:
+                    os.remove(os.path.join(audio_dir, existing_name))
+                    logger.info(f"[Audio Extractor] Removed stale generated track: {existing_name}")
+                except OSError as error:
+                    logger.warning(f"[Audio Extractor] Could not remove stale track {existing_name}: {error}")
 
     return languages
