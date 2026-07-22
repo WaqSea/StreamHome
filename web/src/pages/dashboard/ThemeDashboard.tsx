@@ -22,7 +22,7 @@ import { ENABLE_VISUAL_GENRE_CATEGORIES } from "./catalogFeatures";
 import { CategoryFilterRail } from "./CategoryFilterRail";
 import { GenreCategoryGallery } from "./GenreCategoryGallery";
 import { AvailabilityBadge, RecommendationReason } from "./RecommendationMeta";
-import { RecommendationFeedback, RecommendationFeedbackProvider, useRecommendationFeedback } from "./RecommendationFeedback";
+import { RecommendationFeedbackProvider, useRecommendationFeedback } from "./RecommendationFeedback";
 import { ServerDownloads } from "./ServerDownloads";
 import type { CatalogController } from "./useCatalogController";
 import { useRecommendationExposure } from "./useRecommendationExposure";
@@ -35,7 +35,7 @@ function MediaCard({ movie, session, theme, showReason, position, onOpen, onResu
     <span className="catalog-card__art"><MediaArtwork src={movie.thumbnailUrl} alt={movie.title} media={movie} className="h-full w-full object-cover" /><i aria-hidden="true" /><AvailabilityBadge movie={movie} /></span>
     <span className="catalog-card__copy"><strong>{movie.title}</strong><small>{movie.type} / {movie.releaseYear || "catalogued"}</small>{showReason && <RecommendationReason movie={movie} />}</span>
     {session && <ProgressBar className="catalog-card__progress" progress={completionFraction(session.completionRate)} />}
-  </button>{session && onResume && <button type="button" className="catalog-card__resume" aria-label={`Resume ${movie.title} from ${formatDuration(session.timestamp)}`} data-tooltip={`Resume from ${formatDuration(session.timestamp)}`} onClick={() => onResume(movie, session)}><MediaActionIcon name="resume" /></button>}{showReason && feedback && <RecommendationFeedback compact movieId={movie.id} preference={feedback.preferences[movie.id] ?? null} onChange={feedback.onChange} />}</motion.div>;
+  </button>{session && onResume && <button type="button" className="catalog-card__resume" aria-label={`Resume ${movie.title} from ${formatDuration(session.timestamp)}`} data-tooltip={`Resume from ${formatDuration(session.timestamp)}`} onClick={() => onResume(movie, session)}><MediaActionIcon name="resume" /></button>}</motion.div>;
 }
 
 function MediaCollection({ title, label, items, sessions, theme, showReasons = false, onOpen, onResume }: { title: string; label?: string; items: Movie[]; sessions: PlaybackSession[]; theme: string; showReasons?: boolean; onOpen: (movie: Movie) => void; onResume?: (movie: Movie, session: PlaybackSession) => void }) {

@@ -24,12 +24,12 @@ const FeedbackContext = createContext<FeedbackContextValue | null>(null);
 export const RecommendationFeedbackProvider = FeedbackContext.Provider;
 export function useRecommendationFeedback() { return useContext(FeedbackContext); }
 
-export function RecommendationFeedback({ movieId, preference, onChange, compact = false }: { movieId: string; preference: MediaPreference; onChange: (movieId: string, preference: MediaPreference) => Promise<void>; compact?: boolean }) {
+export function RecommendationFeedback({ movieId, preference, onChange }: { movieId: string; preference: MediaPreference; onChange: (movieId: string, preference: MediaPreference) => Promise<void> }) {
   const [saving, setSaving] = useState(false);
-  return <div className={`recommendation-feedback${compact ? " recommendation-feedback--compact" : ""}`} role="group" aria-label="Recommendation feedback">
+  return <div className="recommendation-feedback" role="group" aria-label="Recommendation feedback">
     {OPTIONS.map((option) => {
       const active = preference === option.value;
-      return <button key={option.value} type="button" className={`recommendation-feedback__button recommendation-feedback__button--${option.value}`} aria-label={`${active ? "Remove" : "Set"} ${option.label.toLowerCase()} for this title`} aria-pressed={active} disabled={saving} onClick={(event) => { event.stopPropagation(); setSaving(true); void onChange(movieId, active ? null : option.value).catch(() => undefined).finally(() => setSaving(false)); }}><span className="recommendation-feedback__icon" aria-hidden="true">{Array.from({ length: option.count }, (_, index) => <ThumbIcon key={index} direction={option.direction} />)}</span>{!compact && <strong>{option.label}</strong>}</button>;
+      return <button key={option.value} type="button" className={`recommendation-feedback__button recommendation-feedback__button--${option.value}`} aria-label={`${active ? "Remove" : "Set"} ${option.label.toLowerCase()} for this title`} aria-pressed={active} disabled={saving} onClick={(event) => { event.stopPropagation(); setSaving(true); void onChange(movieId, active ? null : option.value).catch(() => undefined).finally(() => setSaving(false)); }}><span className="recommendation-feedback__icon" aria-hidden="true">{Array.from({ length: option.count }, (_, index) => <ThumbIcon key={index} direction={option.direction} />)}</span><strong>{option.label}</strong></button>;
     })}
   </div>;
 }
