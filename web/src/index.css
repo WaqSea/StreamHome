@@ -8,34 +8,293 @@
   }
 }
 
-/* Adaptive player controls remain behaviorally identical across themes while inheriting each theme accent. */
+/* Adaptive player controls use one accessible system with theme-native surfaces. */
+.player-view {
+  --player-accent: #f97316;
+  --player-accent-soft: rgba(249, 115, 22, 0.2);
+  --player-border: rgba(255, 255, 255, 0.16);
+  --player-control: rgba(8, 8, 10, 0.74);
+  --player-control-hover: rgba(249, 115, 22, 0.2);
+  --player-menu: rgba(10, 10, 12, 0.96);
+  --player-menu-radius: 0.7rem;
+  --player-control-radius: 0.55rem;
+  --player-shadow: 0 18px 48px rgba(0, 0, 0, 0.5);
+}
+
+.player-view[data-player-theme="terminal"] {
+  --player-accent: #ff6b2c;
+  --player-accent-soft: rgba(255, 95, 31, 0.18);
+  --player-border: rgba(255, 126, 78, 0.3);
+  --player-control: rgba(30, 13, 8, 0.82);
+  --player-control-hover: rgba(255, 95, 31, 0.22);
+  --player-menu: rgba(24, 10, 6, 0.98);
+  --player-menu-radius: 0;
+  --player-control-radius: 0;
+  --player-shadow: 0 18px 52px rgba(20, 5, 2, 0.68), 0 0 24px rgba(255, 95, 31, 0.08);
+}
+
+.player-view[data-player-theme="minimal"] {
+  --player-accent: #f4f4f5;
+  --player-accent-soft: rgba(255, 255, 255, 0.14);
+  --player-border: rgba(255, 255, 255, 0.14);
+  --player-control: rgba(20, 20, 23, 0.76);
+  --player-control-hover: rgba(255, 255, 255, 0.12);
+  --player-menu: rgba(18, 18, 21, 0.96);
+  --player-menu-radius: 1rem;
+  --player-control-radius: 999px;
+}
+
+.player-view[data-player-theme="cinematic"] {
+  --player-accent: #f03b45;
+  --player-accent-soft: rgba(229, 9, 20, 0.2);
+  --player-border: rgba(255, 255, 255, 0.14);
+  --player-control: rgba(14, 10, 10, 0.8);
+  --player-control-hover: rgba(229, 9, 20, 0.22);
+  --player-menu: rgba(15, 10, 10, 0.98);
+  --player-menu-radius: 0.35rem;
+  --player-control-radius: 0.28rem;
+  --player-shadow: 0 24px 70px rgba(0, 0, 0, 0.72);
+}
+
+.player-view[data-player-theme="workspace"] {
+  --player-accent: #8ab4f8;
+  --player-accent-soft: rgba(66, 133, 244, 0.2);
+  --player-border: rgba(138, 180, 248, 0.2);
+  --player-control: rgba(24, 24, 29, 0.84);
+  --player-control-hover: rgba(66, 133, 244, 0.2);
+  --player-menu: rgba(24, 24, 29, 0.98);
+  --player-menu-radius: 0.85rem;
+  --player-control-radius: 0.65rem;
+}
+
+.player-icon {
+  width: 1.15rem;
+  height: 1.15rem;
+  flex: 0 0 auto;
+  overflow: visible;
+}
+
 .player-control-button,
-.player-control-select {
-  min-height: 2.35rem;
-  border: 1px solid color-mix(in srgb, var(--accent-container, #f97316) 26%, rgba(255, 255, 255, 0.16));
-  border-radius: 0.55rem;
-  background: rgba(7, 7, 9, 0.72);
-  color: rgba(255, 255, 255, 0.86);
-  padding: 0.45rem 0.7rem;
-  font-size: 0.78rem;
+.player-control-menu__trigger,
+.player-exit-button {
+  min-height: 2.45rem;
+  border: 1px solid var(--player-border);
+  border-radius: var(--player-control-radius);
+  background: var(--player-control);
+  color: rgba(255, 255, 255, 0.84);
   line-height: 1;
-  backdrop-filter: blur(12px);
-  transition: border-color 150ms ease, background-color 150ms ease, color 150ms ease, transform 150ms ease;
+  backdrop-filter: blur(16px);
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.035);
+  transition: border-color 180ms ease, background-color 180ms ease, color 180ms ease, transform 180ms ease, box-shadow 180ms ease;
+}
+
+.player-control-button {
+  position: relative;
+  width: 2.45rem;
+  display: grid;
+  place-items: center;
+  padding: 0;
 }
 
 .player-control-button:hover,
-.player-control-select:hover {
-  border-color: color-mix(in srgb, var(--accent-container, #f97316) 58%, white 8%);
-  background: color-mix(in srgb, var(--accent-container, #f97316) 15%, rgba(7, 7, 9, 0.88));
+.player-control-menu__trigger:hover,
+.player-exit-button:hover,
+.player-control-menu[data-open="true"] .player-control-menu__trigger {
+  border-color: color-mix(in srgb, var(--player-accent) 62%, white 5%);
+  background: var(--player-control-hover);
   color: white;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--player-accent) 12%, transparent), 0 8px 24px rgba(0, 0, 0, 0.22);
   transform: translateY(-1px);
 }
 
+.player-control-button::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  z-index: 12;
+  left: 50%;
+  bottom: calc(100% + 0.65rem);
+  width: max-content;
+  max-width: 12rem;
+  pointer-events: none;
+  border: 1px solid var(--player-border);
+  border-radius: max(0.2rem, var(--player-control-radius));
+  background: var(--player-menu);
+  color: white;
+  padding: 0.42rem 0.55rem;
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  opacity: 0;
+  transform: translate(-50%, 0.3rem);
+  transition: opacity 150ms ease, transform 150ms ease;
+  white-space: nowrap;
+}
+
+.player-control-button:hover::after,
+.player-control-button:focus-visible::after {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+.player-exit-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0 0.8rem;
+  font-size: 0.75rem;
+  font-weight: 650;
+}
+
+.player-control-menu {
+  position: relative;
+}
+
+.player-control-menu__trigger {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  max-width: 11rem;
+  padding: 0 0.65rem;
+  font-size: 0.72rem;
+  font-weight: 620;
+}
+
+.player-control-menu__trigger > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.player-control-menu__chevron {
+  width: 0.8rem;
+  height: 0.8rem;
+  margin-left: 0.12rem;
+  opacity: 0.55;
+  transition: transform 180ms ease;
+}
+
+.player-control-menu[data-open="true"] .player-control-menu__chevron {
+  transform: rotate(180deg);
+}
+
+.player-control-menu__list {
+  position: absolute;
+  z-index: 80;
+  right: 0;
+  bottom: calc(100% + 0.65rem);
+  width: max-content;
+  min-width: 11rem;
+  max-width: min(18rem, calc(100vw - 2rem));
+  overflow: hidden;
+  border: 1px solid var(--player-border);
+  border-radius: var(--player-menu-radius);
+  background: var(--player-menu);
+  padding: 0.38rem;
+  box-shadow: var(--player-shadow);
+  backdrop-filter: blur(24px);
+  animation: player-menu-enter 170ms cubic-bezier(.16, 1, .3, 1) both;
+}
+
+.player-control-menu__label {
+  display: block;
+  padding: 0.45rem 0.55rem 0.55rem;
+  color: rgba(255, 255, 255, 0.42);
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.player-control-menu__list > button {
+  width: 100%;
+  min-height: 2.2rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border: 0;
+  border-radius: max(0.18rem, calc(var(--player-menu-radius) * 0.68));
+  background: transparent;
+  color: rgba(255, 255, 255, 0.72);
+  padding: 0.5rem 0.58rem;
+  text-align: left;
+  font-size: 0.72rem;
+  transition: background-color 140ms ease, color 140ms ease, padding 140ms ease;
+}
+
+.player-control-menu__list > button:hover,
+.player-control-menu__list > button:focus-visible {
+  outline: 0;
+  background: var(--player-accent-soft);
+  color: white;
+  padding-left: 0.75rem;
+}
+
+.player-control-menu__list > button[aria-selected="true"] {
+  color: var(--player-accent);
+  font-weight: 700;
+}
+
+.player-control-menu__list > button .player-icon {
+  width: 0.9rem;
+  height: 0.9rem;
+}
+
 .player-control-button:focus-visible,
-.player-control-select:focus-visible,
-.player-timeline:focus-visible {
-  outline: 2px solid var(--accent-container, #f97316);
+.player-control-menu__trigger:focus-visible,
+.player-exit-button:focus-visible,
+.player-timeline:focus-visible,
+.player-volume:focus-visible {
+  outline: 2px solid var(--player-accent);
   outline-offset: 3px;
+}
+
+.player-timeline,
+.player-volume {
+  appearance: none;
+  height: 0.28rem;
+  border: 0;
+  border-radius: 999px;
+  outline: 0;
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.player-timeline {
+  --player-progress: 0%;
+  --player-buffered: 0%;
+  background: linear-gradient(to right, var(--player-accent) 0 var(--player-progress), rgba(255, 255, 255, 0.4) var(--player-progress) var(--player-buffered), rgba(255, 255, 255, 0.18) var(--player-buffered) 100%);
+  transition: height 160ms ease, filter 160ms ease;
+}
+
+.player-volume {
+  width: 5rem;
+  accent-color: var(--player-accent);
+}
+
+.player-timeline:hover,
+.player-timeline:focus-visible {
+  height: 0.42rem;
+  filter: drop-shadow(0 0 5px color-mix(in srgb, var(--player-accent) 52%, transparent));
+}
+
+.player-timeline::-webkit-slider-thumb,
+.player-volume::-webkit-slider-thumb {
+  appearance: none;
+  width: 0.85rem;
+  height: 0.85rem;
+  border: 2px solid white;
+  border-radius: 50%;
+  background: var(--player-accent);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+}
+
+.player-timeline::-moz-range-thumb,
+.player-volume::-moz-range-thumb {
+  width: 0.7rem;
+  height: 0.7rem;
+  border: 2px solid white;
+  border-radius: 50%;
+  background: var(--player-accent);
 }
 
 .player-view video::cue {
@@ -80,23 +339,31 @@
 }
 
 @media (max-width: 640px) {
-  .player-control-button,
-  .player-control-select {
-    min-height: 2.65rem;
-    padding-inline: 0.78rem;
-  }
+  .player-control-button { width: 2.65rem; min-height: 2.65rem; }
+  .player-control-menu__trigger { min-height: 2.65rem; }
+  .player-control-menu__trigger > span { max-width: 5.8rem; }
+  .player-control-menu__list { position: fixed; right: 0.75rem; bottom: max(5.75rem, env(safe-area-inset-bottom)); left: 0.75rem; width: auto; max-width: none; }
+  .player-control-button::after { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .player-control-button,
-  .player-control-select {
+  .player-control-menu__trigger,
+  .player-control-menu__list,
+  .player-control-menu__chevron {
     transition-duration: 1ms;
+    animation-duration: 1ms;
   }
 
   .player-control-button:hover,
-  .player-control-select:hover {
+  .player-control-menu__trigger:hover {
     transform: none;
   }
+}
+
+@keyframes player-menu-enter {
+  from { opacity: 0; transform: translateY(0.45rem) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 html, body {

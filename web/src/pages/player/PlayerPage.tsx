@@ -24,6 +24,7 @@ import type {
   PlaybackRunResponse,
 } from "../../types/api";
 import { formatDuration } from "../../utils/format";
+import { PlayerControlMenu, PlayerIcon, PlayerIconButton } from "./PlayerControls";
 
 
 type PlayerPhase =
@@ -230,6 +231,7 @@ export function PlayerPage() {
   const [retryVersion, setRetryVersion] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [bufferedEnd, setBufferedEnd] = useState(0);
   const [volume, setVolume] = useState(1);
   const [muted, setMuted] = useState(false);
   const [showControls, setShowControls] = useState(true);
@@ -285,6 +287,7 @@ export function PlayerPage() {
     setCurrentTime(0);
     currentTimeRef.current = 0;
     setDuration(0);
+    setBufferedEnd(0);
     setShowStartOver(false);
     setNextCountdown(null);
     setNextCancelled(false);
@@ -718,6 +721,12 @@ export function PlayerPage() {
     if (phase === "playing") controlsTimerRef.current = window.setTimeout(() => setShowControls(false), 3_000);
   }, [phase]);
 
+  const handleControlMenuOpenChange = useCallback((open: boolean) => {
+    if (controlsTimerRef.current) window.clearTimeout(controlsTimerRef.current);
+    if (open) setShowControls(true);
+    else revealControls();
+  }, [revealControls]);
+
   useEffect(() => () => {
     if (controlsTimerRef.current) window.clearTimeout(controlsTimerRef.current);
   }, []);
@@ -900,6 +909,18 @@ export function PlayerPage() {
           setCurrentTime(nextTime);
         }}
         onDurationChange={() => setDuration(Number.isFinite(videoRef.current?.duration) ? (videoRef.current?.duration ?? 0) : runResponse.sourceMetadata.duration)}
+        onProgress={() => {
+          const video = videoRef.current;
+          if (!video || video.buffered.length === 0) {
+            setBufferedEnd(0);
+            return;
+          }
+          let nextBufferedEnd = 0;
+          for (let index = 0; index < video.buffered.length; index += 1) {
+            if (video.buffered.start(index) <= video.currentTime + 0.25) nextBufferedEnd = Math.max(nextBufferedEnd, video.buffered.end(index));
+          }
+          setBufferedEnd(nextBufferedEnd);
+        }}
         onVolumeChange={() => {
           setVolume(videoRef.current?.volume ?? 1);
           setMuted(videoRef.current?.muted ?? false);
@@ -992,7 +1013,10 @@ export function PlayerPage() {
                   {asset.subtitle && <p className="mt-1 text-xs text-white/60 md:text-sm">{asset.subtitle}</p>}
                   <p className="mt-1 text-[11px] uppercase tracking-[0.14em] text-white/35">{streamMode === "progressive" ? "Compatibility stream" : "Adaptive stream"}</p>
                 </div>
-                <button onClick={exitPlayer} className="rounded-md px-3 py-2 text-sm text-white/75 transition hover:bg-white/10 hover:text-white focus-visible:outline focus-visible:outline-2">Exit</button>
+                <button onClick={exitPlayer} className="player-exit-button" aria-label="Exit player">
+                  <PlayerIcon name="exit" />
+                  <span>Exit</span>
+                </button>
               </div>
 
               <div className="relative">
@@ -1012,43 +1036,71 @@ export function PlayerPage() {
                   onPointerMove={handleTimelinePreview}
                   onPointerLeave={() => setTimelinePreview(null)}
                   onChange={(event) => seek(Number(event.target.value))}
-                  className="player-timeline w-full cursor-pointer accent-[var(--accent-container)]"
+                  className="player-timeline w-full cursor-pointer"
+                  style={{
+                    "--player-progress": `${duration > 0 ? Math.min(100, (currentTime / duration) * 100) : 0}%`,
+                    "--player-buffered": `${duration > 0 ? Math.min(100, (bufferedEnd / duration) * 100) : 0}%`,
+                  } as React.CSSProperties}
                 />
               </div>
 
               <div className="mt-3 flex flex-wrap items-center gap-2 md:gap-3">
-                <button aria-label={phase === "playing" ? "Pause" : "Play"} onClick={() => phase === "playing" ? videoRef.current?.pause() : safePlay()} className="player-control-button">{phase === "playing" ? "Pause" : "Play"}</button>
-                <button aria-label="Rewind 10 seconds" onClick={() => seek(currentTime - 10)} className="player-control-button">−10s</button>
-                <button aria-label="Forward 10 seconds" onClick={() => seek(currentTime + 10)} className="player-control-button">+10s</button>
-                <button onClick={() => { if (videoRef.current) videoRef.current.muted = !videoRef.current.muted; }} className="player-control-button">{muted ? "Unmute" : "Mute"}</button>
-                <input aria-label="Volume" type="range" min={0} max={1} step={0.01} value={muted ? 0 : volume} onChange={(event) => { const next = Number(event.target.value); if (videoRef.current) { videoRef.current.muted = false; videoRef.current.volume = next; } }} className="w-20 accent-[var(--accent-container)] md:w-24" />
+                <PlayerIconButton icon={phase === "playing" ? "pause" : "play"} label={phase === "playing" ? "Pause" : "Play"} onClick={() => phase === "playing" ? videoRef.current?.pause() : safePlay()} />
+                <PlayerIconButton icon="rewind" label="Rewind 10 seconds" onClick={() => seek(currentTime - 10)} />
+                <PlayerIconButton icon="forward" label="Forward 10 seconds" onClick={() => seek(currentTime + 10)} />
+                <PlayerIconButton icon={muted ? "mute" : "volume"} label={muted ? "Unmute" : "Mute"} onClick={() => { if (videoRef.current) videoRef.current.muted = !videoRef.current.muted; }} />
+                <input aria-label="Volume" type="range" min={0} max={1} step={0.01} value={muted ? 0 : volume} onChange={(event) => { const next = Number(event.target.value); if (videoRef.current) { videoRef.current.muted = false; videoRef.current.volume = next; } }} className="player-volume" />
                 <span className="min-w-[8.5rem] text-xs tabular-nums text-white/65 md:text-sm">{formatDuration(currentTime)} / {duration ? formatDuration(duration) : asset.durationLabel}</span>
 
-                <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
-                  <select aria-label="Playback speed" value={preferences.playbackRate} onChange={(event) => setPreferences((current) => ({ ...current, playbackRate: Number(event.target.value) }))} className="player-control-select">
-                    {[0.5, 0.75, 1, 1.25, 1.5, 2].map((rate) => <option key={rate} value={rate}>{rate}×</option>)}
-                  </select>
+                <div className="player-control-menus ml-auto flex flex-wrap items-center justify-end gap-2">
+                  <PlayerControlMenu
+                    label="Playback speed"
+                    icon="speed"
+                    value={preferences.playbackRate}
+                    options={[0.5, 0.75, 1, 1.25, 1.5, 2].map((rate) => ({ value: rate, label: `${rate}×` }))}
+                    onSelect={(value) => setPreferences((current) => ({ ...current, playbackRate: value }))}
+                    onOpenChange={handleControlMenuOpenChange}
+                  />
                   {availableAudioTracks.length > 1 && (
-                    <select aria-label="Audio language" value={selectedAudioTrackIndex} onChange={(event) => changeAudio(Number(event.target.value))} className="player-control-select">
-                      {availableAudioTracks.map((track) => <option key={`${track.language}-${track.index}`} value={track.index}>{track.label}</option>)}
-                    </select>
+                    <PlayerControlMenu
+                      label="Audio language"
+                      icon="audio"
+                      value={selectedAudioTrackIndex}
+                      options={availableAudioTracks.map((track) => ({ value: track.index, label: track.label }))}
+                      onSelect={changeAudio}
+                      onOpenChange={handleControlMenuOpenChange}
+                    />
                   )}
-                  <select aria-label="Subtitles" value={preferences.subtitleLanguage} onChange={(event) => setPreferences((current) => ({ ...current, subtitleLanguage: event.target.value }))} className="player-control-select">
-                    <option value="off">Subtitles off</option>
-                    {runResponse.subtitles.map((subtitle) => <option key={subtitle.id} value={subtitle.language}>{subtitle.label}</option>)}
-                  </select>
+                  <PlayerControlMenu
+                    label="Subtitles"
+                    icon="captions"
+                    value={preferences.subtitleLanguage}
+                    options={[{ value: "off", label: "Subtitles off" }, ...runResponse.subtitles.map((subtitle) => ({ value: subtitle.language, label: subtitle.label }))]}
+                    onSelect={(value) => setPreferences((current) => ({ ...current, subtitleLanguage: value }))}
+                    onOpenChange={handleControlMenuOpenChange}
+                  />
                   {preferences.subtitleLanguage !== "off" && (
-                    <select aria-label="Caption size" value={preferences.captionScale} onChange={(event) => setPreferences((current) => ({ ...current, captionScale: Number(event.target.value) }))} className="player-control-select">
-                      <option value={0.8}>Captions S</option><option value={1}>Captions M</option><option value={1.25}>Captions L</option><option value={1.5}>Captions XL</option>
-                    </select>
+                    <PlayerControlMenu
+                      label="Caption size"
+                      icon="captions"
+                      value={preferences.captionScale}
+                      options={[{ value: 0.8, label: "Captions S" }, { value: 1, label: "Captions M" }, { value: 1.25, label: "Captions L" }, { value: 1.5, label: "Captions XL" }]}
+                      onSelect={(value) => setPreferences((current) => ({ ...current, captionScale: value }))}
+                      onOpenChange={handleControlMenuOpenChange}
+                    />
                   )}
                   {availableQualities.length > 1 && (
-                    <select aria-label="Quality" value={selectedQualityIndex} onChange={(event) => changeQuality(Number(event.target.value))} className="player-control-select">
-                      {availableQualities.map((item) => <option key={`${item.label}-${item.index}`} value={item.index}>{item.label}</option>)}
-                    </select>
+                    <PlayerControlMenu
+                      label="Quality"
+                      icon="quality"
+                      value={selectedQualityIndex}
+                      options={availableQualities.map((item) => ({ value: item.index, label: item.label }))}
+                      onSelect={changeQuality}
+                      onOpenChange={handleControlMenuOpenChange}
+                    />
                   )}
-                  {document.pictureInPictureEnabled && <button onClick={togglePictureInPicture} className="player-control-button">PiP</button>}
-                  <button onClick={toggleFullscreen} className="player-control-button">Fullscreen</button>
+                  {document.pictureInPictureEnabled && <PlayerIconButton icon="pip" label="Picture in picture" onClick={togglePictureInPicture} />}
+                  <PlayerIconButton icon="fullscreen" label="Fullscreen" onClick={toggleFullscreen} />
                 </div>
               </div>
             </div>
