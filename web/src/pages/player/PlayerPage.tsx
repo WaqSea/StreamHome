@@ -25,6 +25,11 @@ import type {
 } from "../../types/api";
 import { formatDuration } from "../../utils/format";
 import { PlayerControlMenu, PlayerIcon, PlayerIconButton } from "./PlayerControls";
+import {
+  canUsePlayerFullscreen,
+  isPlayerFullscreen,
+  togglePlayerFullscreen,
+} from "./fullscreen";
 
 
 type PlayerPhase =
@@ -244,6 +249,9 @@ export function PlayerPage() {
   const [nextCountdown, setNextCountdown] = useState<number | null>(null);
   const [nextCancelled, setNextCancelled] = useState(false);
   const [timelinePreview, setTimelinePreview] = useState<{ x: number; time: number } | null>(null);
+  const [fullscreenActive, setFullscreenActive] = useState(false);
+  const [fullscreenAvailable, setFullscreenAvailable] = useState(true);
+  const [fullscreenError, setFullscreenError] = useState("");
 
   const exitPlayer = useCallback(() => {
     if (!profile) {
@@ -663,10 +671,52 @@ export function PlayerPage() {
     reportProgress("seek");
   }, [captureWatchedTime, reportProgress]);
 
+  const revealControls = useCallback(() => {
+    setShowControls(true);
+    if (controlsTimerRef.current) window.clearTimeout(controlsTimerRef.current);
+    if (phase === "playing") controlsTimerRef.current = window.setTimeout(() => setShowControls(false), 3_000);
+  }, [phase]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    const updateFullscreenState = () => {
+      setFullscreenActive(isPlayerFullscreen(video));
+      setFullscreenAvailable(canUsePlayerFullscreen(containerRef.current, video));
+      revealControls();
+    };
+
+    updateFullscreenState();
+    document.addEventListener("fullscreenchange", updateFullscreenState);
+    document.addEventListener("webkitfullscreenchange", updateFullscreenState);
+    video?.addEventListener("webkitbeginfullscreen", updateFullscreenState);
+    video?.addEventListener("webkitendfullscreen", updateFullscreenState);
+    return () => {
+      document.removeEventListener("fullscreenchange", updateFullscreenState);
+      document.removeEventListener("webkitfullscreenchange", updateFullscreenState);
+      video?.removeEventListener("webkitbeginfullscreen", updateFullscreenState);
+      video?.removeEventListener("webkitendfullscreen", updateFullscreenState);
+    };
+  }, [revealControls]);
+
   const toggleFullscreen = useCallback(() => {
-    const operation = document.fullscreenElement ? document.exitFullscreen() : containerRef.current?.requestFullscreen();
-    if (operation) void operation.catch(() => undefined);
-  }, []);
+    const container = containerRef.current;
+    const video = videoRef.current;
+    if (!container || !video) return;
+
+    setFullscreenError("");
+    void togglePlayerFullscreen(container, video)
+      .then(() => {
+        setFullscreenActive(isPlayerFullscreen(video));
+        revealControls();
+      })
+      .catch((error: unknown) => {
+        setFullscreenActive(isPlayerFullscreen(video));
+        setFullscreenError(error instanceof Error
+          ? error.message
+          : "Fullscreen could not be opened. Check this browser's fullscreen permission.");
+        setShowControls(true);
+      });
+  }, [revealControls]);
 
   const togglePictureInPicture = useCallback(() => {
     const video = videoRef.current;
@@ -715,12 +765,6 @@ export function PlayerPage() {
     return () => window.clearTimeout(timer);
   }, [nextCountdown, playNextEpisode]);
 
-  const revealControls = useCallback(() => {
-    setShowControls(true);
-    if (controlsTimerRef.current) window.clearTimeout(controlsTimerRef.current);
-    if (phase === "playing") controlsTimerRef.current = window.setTimeout(() => setShowControls(false), 3_000);
-  }, [phase]);
-
   const handleControlMenuOpenChange = useCallback((open: boolean) => {
     if (controlsTimerRef.current) window.clearTimeout(controlsTimerRef.current);
     if (open) setShowControls(true);
@@ -749,14 +793,14 @@ export function PlayerPage() {
         toggleFullscreen();
       } else if (event.key.toLowerCase() === "p") {
         togglePictureInPicture();
-      } else if (event.key === "Escape" && !document.fullscreenElement) {
+      } else if (event.key === "Escape" && !fullscreenActive) {
         exitPlayer();
       }
       revealControls();
     };
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [exitPlayer, revealControls, safePlay, seek, toggleFullscreen, togglePictureInPicture]);
+  }, [exitPlayer, fullscreenActive, revealControls, safePlay, seek, toggleFullscreen, togglePictureInPicture]);
 
   const handleTouchTap = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
     if (event.pointerType !== "touch" || isInteractiveTarget(event.target)) return;
@@ -947,6 +991,20 @@ export function PlayerPage() {
       <div className="sr-only" role="status" aria-live="polite">{phaseMessage[phase]}</div>
 
       <AnimatePresence>
+        {fullscreenError && (
+          <motion.div
+            className="absolute left-1/2 top-[max(1rem,env(safe-area-inset-top))] z-[60] w-[min(92vw,34rem)] -translate-x-1/2 rounded-lg border border-red-300/25 bg-black/90 px-4 py-3 text-center text-sm text-red-100 shadow-2xl backdrop-blur-md"
+            role="alert"
+            initial={reduced ? { opacity: 0 } : { opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={reduced ? { opacity: 0 } : { opacity: 0, y: -8 }}
+          >
+            {fullscreenError}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
         {["buffering", "recovering"].includes(phase) && (
           <motion.div className="pointer-events-none absolute inset-0 z-20 grid place-items-center bg-black/10" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
             <div className="rounded-xl bg-black/65 px-5 py-4 text-center backdrop-blur-md">
@@ -1100,7 +1158,13 @@ export function PlayerPage() {
                     />
                   )}
                   {document.pictureInPictureEnabled && <PlayerIconButton icon="pip" label="Picture in picture" onClick={togglePictureInPicture} />}
-                  <PlayerIconButton icon="fullscreen" label="Fullscreen" onClick={toggleFullscreen} />
+                  <PlayerIconButton
+                    icon={fullscreenActive ? "fullscreen-exit" : "fullscreen"}
+                    label={fullscreenActive ? "Exit fullscreen" : "Fullscreen"}
+                    aria-pressed={fullscreenActive}
+                    disabled={!fullscreenAvailable}
+                    onClick={toggleFullscreen}
+                  />
                 </div>
               </div>
             </div>

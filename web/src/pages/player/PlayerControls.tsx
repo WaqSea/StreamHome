@@ -8,6 +8,7 @@ export type PlayerIconName =
   | "exit"
   | "forward"
   | "fullscreen"
+  | "fullscreen-exit"
   | "mute"
   | "pause"
   | "pip"
@@ -46,6 +47,7 @@ export function PlayerIcon({ name, className = "" }: PlayerIconProps) {
   if (name === "quality") return <svg {...common}><rect x="3" y="5" width="18" height="14" rx="2" /><path d="m8 15 2.4-3 2.1 2 3.3-4 2.2 5" /></svg>;
   if (name === "pip") return <svg {...common}><rect x="3" y="5" width="18" height="14" rx="2" /><rect x="12" y="11" width="7" height="5" rx="1" fill="currentColor" stroke="none" /></svg>;
   if (name === "fullscreen") return <svg {...common}><path d="M8 4H4v4M16 4h4v4M8 20H4v-4M16 20h4v-4" /></svg>;
+  if (name === "fullscreen-exit") return <svg {...common}><path d="M4 8h4V4M20 8h-4V4M4 16h4v4M20 16h-4v4" /></svg>;
   if (name === "exit") return <svg {...common}><path d="M14 5h5v14h-5M10 8l-4 4 4 4M6 12h9" /></svg>;
   if (name === "chevron") return <svg {...common}><path d="m7 9 5 5 5-5" /></svg>;
   return <svg {...common}><path d="m7 12 3 3 7-7" /></svg>;
