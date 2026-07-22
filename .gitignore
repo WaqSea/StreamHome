@@ -1,23 +1,28 @@
-# Dependency directories
+# Dependencies and virtual environments
 node_modules/
-web/node_modules/
+venv/
+.venv/
+env/
+ENV/
 
-# Build outputs
+# Build and compiler output
 dist/
-web/dist/
 build/
+.vite/
+*.tsbuildinfo
 
-# Python caching & byte-code
+# Python caches, test output, and coverage
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
+*.py[cod]
 .pytest_cache/
-server/__pycache__/
-server/routes/__pycache__/
-server/services/__pycache__/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+coverage/
+htmlcov/
 
-# Environments and Secrets
+# Environment files and runtime secrets
 .env
 .env.local
 .env.development.local
@@ -25,40 +30,33 @@ server/services/__pycache__/
 .env.production.local
 server/.env
 web/.env
-server/media/
 server/settings.json
+server/rclone/
 
-# Virtual Environments
-venv/
-.venv/
-env/
-ENV/
-
-# SQLite databases, temporary downloads, & logs
+# Runtime databases, media, backups, downloads, and binaries
 server/database.db
 server/database.db-shm
 server/database.db-wal
 server/backup/
+server/media/
 server/temp/
 temp/
 server/bin/
 bin/
+.metadata/
 
+# Logs and local agent state
 *.log
 .run/
 .gemini/
-.gemini/antigravity/
 memory-bank/
 AGENTS.md
-memory-bank/systemPatterns.md
-memory-bank/progress.md
-memory-bank/activeContext.md
 
-#Unimportant project files
+# Unimportant project files
 banner.txt
 reports.md
 
-# IDEs, Editors, & OS Files
+# IDEs, editors, and operating-system files
 .vscode/
 .idea/
 *.suo
@@ -68,5 +66,6 @@ reports.md
 *.swp
 *.mp4
 *.mp3
+.DS_Store
 Thumbs.db
 desktop.ini
