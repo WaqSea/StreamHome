@@ -33,4 +33,13 @@ describe("dedicated mobile player presentation", () => {
     expect(playerStyles).toContain('@media (hover: none), (pointer: coarse)');
     expect(playerStyles).toContain('.player-control-button::after');
   });
+
+  it("uses frame-synchronized progress, guarded pointer gestures, and a stable seek indicator", () => {
+    expect(playerPage).toContain("window.requestAnimationFrame(updateTimeline)");
+    expect(playerPage).toContain("isMobileTapCandidate(");
+    expect(playerPage).toContain('onPointerDown={(event) => handleMobilePointerDown("left", event)}');
+    expect(playerPage).not.toContain("key={mobileSeekFeedback.nonce}");
+    expect(playerPage).toContain("seek((videoRef.current?.currentTime ?? 0) + result.seekDelta, false)");
+    expect(playerStyles).toContain("touch-action: pan-y");
+  });
 });

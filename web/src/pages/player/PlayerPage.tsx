@@ -32,11 +32,13 @@ import {
 } from "./fullscreen";
 import {
   isForcedLandscape,
+  isMobileTapCandidate,
   isPhonePlayerViewport,
   lockPlayerLandscape,
   MOBILE_TAP_CHAIN_WINDOW,
   nextMobileTap,
   readMobileViewport,
+  shouldShowMobileChrome,
   unlockPlayerLandscape,
   type MobileTapChain,
   type MobileTapSide,
@@ -85,6 +87,14 @@ interface FatalState {
   title: string;
   message: string;
   retryable: boolean;
+}
+
+interface MobilePointerGesture {
+  id: number;
+  side: MobileTapSide | "center";
+  x: number;
+  y: number;
+  at: number;
 }
 
 const DEFAULT_PREFERENCES: PlayerPreferences = {
@@ -238,8 +248,12 @@ export function PlayerPage() {
   const mobileTapChainRef = useRef<MobileTapChain | null>(null);
   const mobileSingleTapTimerRef = useRef<number | null>(null);
   const mobileTapResetTimerRef = useRef<number | null>(null);
-  const mobileFeedbackTimerRef = useRef<number | null>(null);
-  const mobileFullscreenAttemptedRef = useRef(false);
+  const mobileFullscreenAttemptedAtRef = useRef(0);
+  const mobilePointerGestureRef = useRef<MobilePointerGesture | null>(null);
+  const showControlsRef = useRef(true);
+  const scrubbingRef = useRef(false);
+  const scrubOriginRef = useRef(0);
+  const timelineAnimationFrameRef = useRef<number | null>(null);
   const mountedRef = useRef(true);
 
   const [asset, setAsset] = useState<PlayableAsset | null>(null);
@@ -267,12 +281,12 @@ export function PlayerPage() {
   const [fullscreenActive, setFullscreenActive] = useState(false);
   const [fullscreenAvailable, setFullscreenAvailable] = useState(true);
   const [fullscreenError, setFullscreenError] = useState("");
-  const [mobilePlayer, setMobilePlayer] = useState(false);
-  const [forcedLandscape, setForcedLandscape] = useState(false);
+  const [mobilePlayer, setMobilePlayer] = useState(() => typeof window !== "undefined" && isPhonePlayerViewport(readMobileViewport(window)));
+  const [forcedLandscape, setForcedLandscape] = useState(() => typeof window !== "undefined" && isForcedLandscape(window.innerWidth, window.innerHeight, isPhonePlayerViewport(readMobileViewport(window))));
+  const [forcedLandscapeDirection, setForcedLandscapeDirection] = useState<"clockwise" | "counterclockwise">("clockwise");
   const [mobileSeekFeedback, setMobileSeekFeedback] = useState<{
     side: MobileTapSide;
     seconds: number;
-    nonce: number;
   } | null>(null);
 
   const exitPlayer = useCallback(() => {
@@ -299,7 +313,7 @@ export function PlayerPage() {
       setMobilePlayer(nextMobilePlayer);
       setForcedLandscape(isForcedLandscape(metrics.width, metrics.height, nextMobilePlayer));
       if (!nextMobilePlayer) {
-        mobileFullscreenAttemptedRef.current = false;
+        mobileFullscreenAttemptedAtRef.current = 0;
         unlockPlayerLandscape();
       }
     };
@@ -315,6 +329,10 @@ export function PlayerPage() {
       unlockPlayerLandscape();
     };
   }, []);
+
+  useEffect(() => {
+    showControlsRef.current = showControls;
+  }, [showControls]);
 
   useEffect(() => {
     if (!profile) return;
@@ -715,7 +733,7 @@ export function PlayerPage() {
     });
   }, []);
 
-  const seek = useCallback((nextTime: number) => {
+  const seek = useCallback((nextTime: number, report = true) => {
     const video = videoRef.current;
     if (!video) return;
     captureWatchedTime();
@@ -725,7 +743,7 @@ export function PlayerPage() {
     lastAdvanceWallRef.current = null;
     lastAdvanceMediaRef.current = bounded;
     setCurrentTime(bounded);
-    reportProgress("seek");
+    if (report) reportProgress("seek");
   }, [captureWatchedTime, reportProgress]);
 
   const revealControls = useCallback(() => {
@@ -735,11 +753,38 @@ export function PlayerPage() {
   }, [phase]);
 
   useEffect(() => {
+    if (phase !== "playing") return;
+    const updateTimeline = () => {
+      const video = videoRef.current;
+      const timeline = timelineRef.current;
+      if (video && timeline && !scrubbingRef.current) {
+        const liveDuration = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : duration;
+        const liveTime = Math.min(video.currentTime, liveDuration || video.currentTime);
+        timeline.value = String(liveTime);
+        timeline.style.setProperty("--player-progress", `${liveDuration > 0 ? Math.min(100, (liveTime / liveDuration) * 100) : 0}%`);
+      }
+      timelineAnimationFrameRef.current = window.requestAnimationFrame(updateTimeline);
+    };
+    timelineAnimationFrameRef.current = window.requestAnimationFrame(updateTimeline);
+    return () => {
+      if (timelineAnimationFrameRef.current !== null) window.cancelAnimationFrame(timelineAnimationFrameRef.current);
+      timelineAnimationFrameRef.current = null;
+    };
+  }, [duration, phase]);
+
+  useEffect(() => {
     const video = videoRef.current;
     const updateFullscreenState = () => {
-      setFullscreenActive(isPlayerFullscreen(video));
+      const active = isPlayerFullscreen(video);
+      setFullscreenActive(active);
       setFullscreenAvailable(canUsePlayerFullscreen(containerRef.current, video));
-      if (!mobilePlayer) revealControls();
+      if (mobilePlayer) {
+        if (active) void lockPlayerLandscape();
+        else {
+          mobileFullscreenAttemptedAtRef.current = 0;
+          unlockPlayerLandscape();
+        }
+      } else revealControls();
     };
 
     updateFullscreenState();
@@ -778,15 +823,24 @@ export function PlayerPage() {
 
   const ensureMobileLandscape = useCallback(() => {
     if (!mobilePlayer) return;
-    void lockPlayerLandscape();
-    if (fullscreenActive || mobileFullscreenAttemptedRef.current) return;
+    if (fullscreenActive) {
+      void lockPlayerLandscape();
+      return;
+    }
     const container = containerRef.current;
     const video = videoRef.current;
     if (!container || !video) return;
-    mobileFullscreenAttemptedRef.current = true;
+    const now = performance.now();
+    if (mobileFullscreenAttemptedAtRef.current > 0 && now - mobileFullscreenAttemptedAtRef.current < 2_000) return;
+    mobileFullscreenAttemptedAtRef.current = now;
     void togglePlayerFullscreen(container, video, document, { allowVideoFallback: false })
-      .then(() => setFullscreenActive(isPlayerFullscreen(video)))
+      .then(async () => {
+        const active = isPlayerFullscreen(video);
+        setFullscreenActive(active);
+        if (active) await lockPlayerLandscape();
+      })
       .catch(() => {
+        mobileFullscreenAttemptedAtRef.current = Number.POSITIVE_INFINITY;
         // The CSS-rotated landscape presentation remains active when browser policy rejects fullscreen.
       });
   }, [fullscreenActive, mobilePlayer]);
@@ -881,13 +935,13 @@ export function PlayerPage() {
   }, [exitPlayer, fullscreenActive, revealControls, safePlay, seek, toggleFullscreen, togglePictureInPicture]);
 
   const toggleMobileControls = useCallback(() => {
-    if (showControls) {
+    if (showControlsRef.current) {
       if (controlsTimerRef.current) window.clearTimeout(controlsTimerRef.current);
       setShowControls(false);
       return;
     }
     revealControls();
-  }, [revealControls, showControls]);
+  }, [revealControls]);
 
   const resetMobileTapTimers = useCallback(() => {
     if (mobileSingleTapTimerRef.current !== null) window.clearTimeout(mobileSingleTapTimerRef.current);
@@ -898,25 +952,29 @@ export function PlayerPage() {
 
   const handleMobileSurfaceTap = useCallback((side: MobileTapSide) => {
     ensureMobileLandscape();
-    const result = nextMobileTap(mobileTapChainRef.current, side, performance.now());
+    const now = performance.now();
+    const previous = mobileTapChainRef.current;
+    if (previous && previous.seekSteps > 0 && (previous.side !== side || now - previous.lastTapAt > MOBILE_TAP_CHAIN_WINDOW)) {
+      reportProgress("seek");
+      setMobileSeekFeedback(null);
+      mobileTapChainRef.current = null;
+    }
+    const result = nextMobileTap(mobileTapChainRef.current, side, now);
     mobileTapChainRef.current = result.chain;
 
     if (mobileTapResetTimerRef.current !== null) window.clearTimeout(mobileTapResetTimerRef.current);
     mobileTapResetTimerRef.current = window.setTimeout(() => {
+      if ((mobileTapChainRef.current?.seekSteps ?? 0) > 0) reportProgress("seek");
       mobileTapChainRef.current = null;
+      setMobileSeekFeedback(null);
       mobileTapResetTimerRef.current = null;
-    }, MOBILE_TAP_CHAIN_WINDOW + 80);
+    }, MOBILE_TAP_CHAIN_WINDOW + 60);
 
     if (result.seekDelta !== 0) {
       if (mobileSingleTapTimerRef.current !== null) window.clearTimeout(mobileSingleTapTimerRef.current);
       mobileSingleTapTimerRef.current = null;
-      seek((videoRef.current?.currentTime ?? 0) + result.seekDelta);
-      setMobileSeekFeedback({ side, seconds: result.accumulatedSeconds, nonce: performance.now() });
-      if (mobileFeedbackTimerRef.current !== null) window.clearTimeout(mobileFeedbackTimerRef.current);
-      mobileFeedbackTimerRef.current = window.setTimeout(() => {
-        setMobileSeekFeedback(null);
-        mobileFeedbackTimerRef.current = null;
-      }, 720);
+      seek((videoRef.current?.currentTime ?? 0) + result.seekDelta, false);
+      setMobileSeekFeedback({ side, seconds: result.accumulatedSeconds });
       return;
     }
 
@@ -926,19 +984,69 @@ export function PlayerPage() {
       mobileTapChainRef.current = null;
       mobileSingleTapTimerRef.current = null;
     }, MOBILE_TAP_CHAIN_WINDOW);
-  }, [ensureMobileLandscape, seek, toggleMobileControls]);
+  }, [ensureMobileLandscape, reportProgress, seek, toggleMobileControls]);
 
   const handleMobileCenterTap = useCallback(() => {
     ensureMobileLandscape();
+    if ((mobileTapChainRef.current?.seekSteps ?? 0) > 0) reportProgress("seek");
     resetMobileTapTimers();
     mobileTapChainRef.current = null;
+    setMobileSeekFeedback(null);
     toggleMobileControls();
-  }, [ensureMobileLandscape, resetMobileTapTimers, toggleMobileControls]);
+  }, [ensureMobileLandscape, reportProgress, resetMobileTapTimers, toggleMobileControls]);
 
   useEffect(() => () => {
     resetMobileTapTimers();
-    if (mobileFeedbackTimerRef.current !== null) window.clearTimeout(mobileFeedbackTimerRef.current);
   }, [resetMobileTapTimers]);
+
+  const handleMobilePointerDown = useCallback((side: MobileTapSide | "center", event: React.PointerEvent<HTMLDivElement>) => {
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+    mobilePointerGestureRef.current = { id: event.pointerId, side, x: event.clientX, y: event.clientY, at: performance.now() };
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+  }, []);
+
+  const handleMobilePointerEnd = useCallback((side: MobileTapSide | "center", event: React.PointerEvent<HTMLDivElement>, cancelled = false) => {
+    const start = mobilePointerGestureRef.current;
+    mobilePointerGestureRef.current = null;
+    if (!start || start.id !== event.pointerId || start.side !== side || cancelled) return;
+    if (!isMobileTapCandidate(
+      { x: start.x, y: start.y, at: start.at },
+      { x: event.clientX, y: event.clientY, at: performance.now() },
+    )) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (side === "center") handleMobileCenterTap();
+    else handleMobileSurfaceTap(side);
+  }, [handleMobileCenterTap, handleMobileSurfaceTap]);
+
+  const beginTimelineScrub = useCallback(() => {
+    scrubbingRef.current = true;
+    scrubOriginRef.current = videoRef.current?.currentTime ?? currentTimeRef.current;
+    if (controlsTimerRef.current) window.clearTimeout(controlsTimerRef.current);
+    setShowControls(true);
+  }, []);
+
+  const previewTimelineScrub = useCallback((value: number) => {
+    currentTimeRef.current = value;
+    setCurrentTime(value);
+    const timeline = timelineRef.current;
+    const max = Number(timeline?.max || duration || 1);
+    timeline?.style.setProperty("--player-progress", `${Math.min(100, (value / max) * 100)}%`);
+  }, [duration]);
+
+  const commitTimelineScrub = useCallback((value: number) => {
+    if (!scrubbingRef.current) return;
+    scrubbingRef.current = false;
+    seek(value);
+    revealControls();
+  }, [revealControls, seek]);
+
+  const cancelTimelineScrub = useCallback(() => {
+    if (!scrubbingRef.current) return;
+    scrubbingRef.current = false;
+    previewTimelineScrub(scrubOriginRef.current);
+    revealControls();
+  }, [previewTimelineScrub, revealControls]);
 
   const handleTimelinePreview = (event: React.PointerEvent<HTMLInputElement>) => {
     const rect = event.currentTarget.getBoundingClientRect();
@@ -996,7 +1104,15 @@ export function PlayerPage() {
 
   if (phase === "resolving" || phase === "preparing" || (phase === "loading" && !asset)) {
     return (
-      <motion.div className="grid min-h-screen place-items-center bg-black px-6 text-white" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+      <motion.div
+        className="player-view player-state-view fixed inset-0 grid min-h-screen place-items-center bg-black px-6 text-white"
+        data-mobile-player={mobilePlayer ? "true" : "false"}
+        data-mobile-orientation={forcedLandscape ? "forced-landscape" : "native-landscape"}
+        data-mobile-landscape-direction={forcedLandscapeDirection}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+      >
         <div className="text-center" role="status" aria-live="polite">
           <motion.i className="mx-auto block h-11 w-11 rounded-full border-2 border-white/20 border-t-white" animate={reduced ? undefined : { rotate: 360 }} transition={{ duration: 0.8, repeat: Infinity, ease: "linear" }} />
           <p className="mt-5 text-sm tracking-[0.16em] text-white/70">{phaseMessage[phase]}</p>
@@ -1008,7 +1124,14 @@ export function PlayerPage() {
 
   if (fatal || !asset || !runResponse) {
     return (
-      <motion.div className="grid min-h-screen place-items-center bg-black p-6 text-white" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+      <motion.div
+        className="player-view player-state-view fixed inset-0 grid min-h-screen place-items-center bg-black p-6 text-white"
+        data-mobile-player={mobilePlayer ? "true" : "false"}
+        data-mobile-orientation={forcedLandscape ? "forced-landscape" : "native-landscape"}
+        data-mobile-landscape-direction={forcedLandscapeDirection}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+      >
         <motion.div className="max-w-lg text-center" initial={reduced ? { opacity: 0 } : { opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: reduced ? MOTION_TIMINGS.reduced : MOTION_TIMINGS.dialogEnter, ease: MOTION_EASE }}>
           <p className="text-xs uppercase tracking-[0.2em] text-white/40">{phase === "unavailable" ? "Unavailable" : "Recovery required"}</p>
           <h1 className="mt-3 text-2xl font-semibold">{fatal?.title || "Playback unavailable"}</h1>
@@ -1032,6 +1155,7 @@ export function PlayerPage() {
       data-player-phase={phase}
       data-mobile-player={mobilePlayer ? "true" : "false"}
       data-mobile-orientation={forcedLandscape ? "forced-landscape" : "native-landscape"}
+      data-mobile-landscape-direction={forcedLandscapeDirection}
       style={{ "--caption-scale": preferences.captionScale } as React.CSSProperties}
       onMouseMove={mobilePlayer ? undefined : revealControls}
       onClick={mobilePlayer ? undefined : revealControls}
@@ -1118,27 +1242,21 @@ export function PlayerPage() {
         <div className="mobile-player-gesture-layer" aria-hidden="true">
           <div
             className="mobile-player-gesture-zone mobile-player-gesture-zone--left"
-            onPointerUp={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-              handleMobileSurfaceTap("left");
-            }}
+            onPointerDown={(event) => handleMobilePointerDown("left", event)}
+            onPointerUp={(event) => handleMobilePointerEnd("left", event)}
+            onPointerCancel={(event) => handleMobilePointerEnd("left", event, true)}
           />
           <div
             className="mobile-player-gesture-zone mobile-player-gesture-zone--center"
-            onPointerUp={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-              handleMobileCenterTap();
-            }}
+            onPointerDown={(event) => handleMobilePointerDown("center", event)}
+            onPointerUp={(event) => handleMobilePointerEnd("center", event)}
+            onPointerCancel={(event) => handleMobilePointerEnd("center", event, true)}
           />
           <div
             className="mobile-player-gesture-zone mobile-player-gesture-zone--right"
-            onPointerUp={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-              handleMobileSurfaceTap("right");
-            }}
+            onPointerDown={(event) => handleMobilePointerDown("right", event)}
+            onPointerUp={(event) => handleMobilePointerEnd("right", event)}
+            onPointerCancel={(event) => handleMobilePointerEnd("right", event, true)}
           />
         </div>
       )}
@@ -1146,20 +1264,16 @@ export function PlayerPage() {
       <AnimatePresence>
         {mobilePlayer && mobileSeekFeedback && (
           <motion.div
-            key={mobileSeekFeedback.nonce}
             className={`mobile-player-seek-feedback mobile-player-seek-feedback--${mobileSeekFeedback.side}`}
-            initial={reduced ? { opacity: 0 } : { opacity: 0, scale: 0.78 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={reduced ? { opacity: 0 } : { opacity: 0, scale: 1.08 }}
-            transition={{ duration: reduced ? MOTION_TIMINGS.reduced : 0.18, ease: MOTION_EASE }}
+            initial={reduced ? { opacity: 0 } : { opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={reduced ? { opacity: 0 } : { opacity: 0, y: 2 }}
+            transition={{ duration: reduced ? MOTION_TIMINGS.reduced : 0.13, ease: MOTION_EASE }}
             aria-hidden="true"
           >
-            <motion.i
-              animate={reduced ? undefined : { rotate: mobileSeekFeedback.side === "left" ? -18 : 18 }}
-              transition={{ duration: 0.18, ease: MOTION_EASE }}
-            >
+            <i>
               <PlayerIcon name={mobileSeekFeedback.side === "left" ? "rewind" : "forward"} />
-            </motion.i>
+            </i>
             <strong>{mobileSeekFeedback.side === "left" ? "−" : "+"}{mobileSeekFeedback.seconds}</strong>
             <span>seconds</span>
           </motion.div>
@@ -1199,7 +1313,7 @@ export function PlayerPage() {
       </AnimatePresence>
 
       <AnimatePresence>
-        {showStartOver && (
+        {showStartOver && !mobilePlayer && (
           <motion.button className="player-start-over absolute left-6 top-6 z-40 rounded-lg border border-white/20 bg-black/70 px-4 py-2 text-sm backdrop-blur-md md:left-10 md:top-10" onClick={startOver} initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }}>
             Start over
           </motion.button>
@@ -1240,20 +1354,28 @@ export function PlayerPage() {
       </AnimatePresence>
 
       <AnimatePresence>
-        {mobilePlayer && (showControls || phase !== "playing") && phase !== "ended" && (
+        {mobilePlayer && shouldShowMobileChrome(phase, showControls) && phase !== "ended" && (
           <motion.div
             className="mobile-player-chrome"
-            initial={reduced ? { opacity: 0 } : { opacity: 0, scale: 0.985 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={reduced ? { opacity: 0 } : { opacity: 0, scale: 1.01 }}
-            transition={{ duration: reduced ? MOTION_TIMINGS.reduced : 0.24, ease: MOTION_EASE }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: reduced ? MOTION_TIMINGS.reduced : 0.16, ease: MOTION_EASE }}
           >
-            <motion.header
-              className="mobile-player-topbar"
-              initial={reduced ? undefined : { y: -18 }}
-              animate={{ y: 0 }}
-              exit={reduced ? undefined : { y: -14 }}
-            >
+            <header className="mobile-player-topbar">
+              <div className="mobile-player-topbar__actions">
+                {showStartOver && (
+                  <PlayerIconButton icon="rewind" label="Start over" className="mobile-player-start-over" onClick={startOver} />
+                )}
+                {forcedLandscape && (
+                  <PlayerIconButton
+                    icon="rotate"
+                    label="Rotate player"
+                    className="mobile-player-rotate"
+                    onClick={() => setForcedLandscapeDirection((direction) => direction === "clockwise" ? "counterclockwise" : "clockwise")}
+                  />
+                )}
+              </div>
               <div className="mobile-player-title">
                 <h1>{asset.title}</h1>
                 {asset.subtitle && <p>{asset.subtitle}</p>}
@@ -1264,19 +1386,14 @@ export function PlayerPage() {
                 className="mobile-player-exit"
                 onClick={exitPlayer}
               />
-            </motion.header>
+            </header>
 
-            <motion.div
-              className="mobile-player-transport"
-              initial={reduced ? undefined : { opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={reduced ? undefined : { opacity: 0, scale: 0.92 }}
-            >
+            <div className="mobile-player-transport">
               <PlayerIconButton
                 icon="rewind"
                 label="Rewind 10 seconds"
                 className="mobile-player-transport__seek"
-                onClick={() => seek(currentTime - 10)}
+                onClick={() => seek((videoRef.current?.currentTime ?? currentTimeRef.current) - 10)}
               />
               <PlayerIconButton
                 icon={phase === "playing" ? "pause" : "play"}
@@ -1288,25 +1405,26 @@ export function PlayerPage() {
                 icon="forward"
                 label="Forward 10 seconds"
                 className="mobile-player-transport__seek"
-                onClick={() => seek(currentTime + 10)}
+                onClick={() => seek((videoRef.current?.currentTime ?? currentTimeRef.current) + 10)}
               />
-            </motion.div>
+            </div>
 
-            <motion.div
-              className="mobile-player-bottom"
-              initial={reduced ? undefined : { y: 22 }}
-              animate={{ y: 0 }}
-              exit={reduced ? undefined : { y: 18 }}
-            >
+            <div className="mobile-player-bottom">
               <input
                 ref={timelineRef}
                 aria-label="Playback position"
                 type="range"
                 min={0}
-                max={duration || 0}
+                max={duration > 0 ? duration : Math.max(runResponse.sourceMetadata.duration, currentTime, 1)}
                 step={0.1}
                 value={Math.min(currentTime, duration || currentTime)}
-                onChange={(event) => seek(Number(event.target.value))}
+                onPointerDown={beginTimelineScrub}
+                onInput={(event) => previewTimelineScrub(Number(event.currentTarget.value))}
+                onPointerUp={(event) => commitTimelineScrub(Number(event.currentTarget.value))}
+                onPointerCancel={cancelTimelineScrub}
+                onChange={(event) => {
+                  if (!scrubbingRef.current) seek(Number(event.currentTarget.value));
+                }}
                 className="player-timeline mobile-player-timeline"
                 style={{
                   "--player-progress": `${duration > 0 ? Math.min(100, (currentTime / duration) * 100) : 0}%`,
@@ -1371,7 +1489,7 @@ export function PlayerPage() {
                   )}
                 </div>
               </div>
-            </motion.div>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>

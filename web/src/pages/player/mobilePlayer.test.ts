@@ -1,9 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   isForcedLandscape,
+  isMobileTapCandidate,
   isPhonePlayerViewport,
   lockPlayerLandscape,
   nextMobileTap,
+  shouldShowMobileChrome,
   unlockPlayerLandscape,
 } from "./mobilePlayer";
 
@@ -40,6 +42,25 @@ describe("mobile repeated-tap seeking", () => {
     expect(nextMobileTap(first.chain, "left", 1_200)).toMatchObject({ seekDelta: -10, accumulatedSeconds: 10 });
     expect(nextMobileTap(first.chain, "right", 1_200)).toMatchObject({ seekDelta: 0, accumulatedSeconds: 0 });
     expect(nextMobileTap(first.chain, "left", 2_000)).toMatchObject({ seekDelta: 0, accumulatedSeconds: 0 });
+  });
+});
+
+describe("mobile tap recognition", () => {
+  it("accepts a short stationary tap", () => {
+    expect(isMobileTapCandidate({ x: 100, y: 80, at: 1_000 }, { x: 106, y: 84, at: 1_180 })).toBe(true);
+  });
+
+  it("rejects swipes, long presses, and invalid timestamps", () => {
+    expect(isMobileTapCandidate({ x: 20, y: 20, at: 1_000 }, { x: 80, y: 20, at: 1_150 })).toBe(false);
+    expect(isMobileTapCandidate({ x: 20, y: 20, at: 1_000 }, { x: 20, y: 20, at: 1_600 })).toBe(false);
+    expect(isMobileTapCandidate({ x: 20, y: 20, at: 1_000 }, { x: 20, y: 20, at: 900 })).toBe(false);
+  });
+
+  it("does not reveal every control merely because playback is buffering", () => {
+    expect(shouldShowMobileChrome("buffering", false)).toBe(false);
+    expect(shouldShowMobileChrome("recovering", false)).toBe(false);
+    expect(shouldShowMobileChrome("paused", false)).toBe(true);
+    expect(shouldShowMobileChrome("playing", true)).toBe(true);
   });
 });
 

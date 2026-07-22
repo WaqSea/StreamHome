@@ -20,6 +20,12 @@ export interface MobileViewportMetrics {
   hoverUnavailable: boolean;
 }
 
+export interface MobilePointerSample {
+  x: number;
+  y: number;
+  at: number;
+}
+
 interface LockableScreenOrientation {
   lock?: (orientation: "landscape") => Promise<void>;
   unlock?: () => void;
@@ -27,7 +33,9 @@ interface LockableScreenOrientation {
 
 const MOBILE_SHORT_EDGE_LIMIT = 700;
 const MOBILE_LONG_EDGE_LIMIT = 1_200;
-export const MOBILE_TAP_CHAIN_WINDOW = 360;
+export const MOBILE_TAP_CHAIN_WINDOW = 300;
+export const MOBILE_TAP_MAX_DURATION = 450;
+export const MOBILE_TAP_MAX_DISTANCE = 14;
 
 export function isPhonePlayerViewport(metrics: MobileViewportMetrics): boolean {
   const shortEdge = Math.min(metrics.width, metrics.height);
@@ -37,13 +45,29 @@ export function isPhonePlayerViewport(metrics: MobileViewportMetrics): boolean {
 }
 
 export function readMobileViewport(windowObject: Window = window): MobileViewportMetrics {
+  const matches = (query: string) => typeof windowObject.matchMedia === "function" && windowObject.matchMedia(query).matches;
   return {
     width: windowObject.innerWidth,
     height: windowObject.innerHeight,
     maxTouchPoints: windowObject.navigator.maxTouchPoints,
-    coarsePointer: windowObject.matchMedia("(pointer: coarse)").matches,
-    hoverUnavailable: windowObject.matchMedia("(hover: none)").matches,
+    coarsePointer: matches("(pointer: coarse)"),
+    hoverUnavailable: matches("(hover: none)"),
   };
+}
+
+export function isMobileTapCandidate(
+  start: MobilePointerSample,
+  end: MobilePointerSample,
+  maxDistance = MOBILE_TAP_MAX_DISTANCE,
+  maxDuration = MOBILE_TAP_MAX_DURATION,
+): boolean {
+  const elapsed = end.at - start.at;
+  if (elapsed < 0 || elapsed > maxDuration) return false;
+  return Math.hypot(end.x - start.x, end.y - start.y) <= maxDistance;
+}
+
+export function shouldShowMobileChrome(phase: string, requested: boolean): boolean {
+  return requested || phase === "paused" || phase === "loading";
 }
 
 export function nextMobileTap(
