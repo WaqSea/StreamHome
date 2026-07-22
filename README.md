@@ -104,13 +104,13 @@ StreamHome will provide installation scripts for supported platforms. These scri
 ### Linux — Ubuntu and Debian
 
 ```bash
-# Installation command will be added before the public alpha release.
+curl -fsSL https://raw.githubusercontent.com/StreamHome/StreamHome/main/install.sh | bash
 ```
 
 ### Windows — PowerShell as Administrator
 
 ```powershell
-# Installation command will be added before the public alpha release.
+irm https://raw.githubusercontent.com/StreamHome/StreamHome/main/install.ps1 | iex
 ```
 
 ## 📚 Documentation and Support
