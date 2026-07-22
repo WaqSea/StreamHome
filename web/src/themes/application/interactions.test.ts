@@ -76,10 +76,11 @@ describe("semantic hover interaction system", () => {
     expect(interactions).toContain("background: var(--billboard-progress-fill");
   });
 
-  it("keeps resume controls at the artwork bottom-right without vertical badge strips", () => {
-    expect(index).toContain("bottom: calc(74px + 0.75rem)");
-    expect(index).toContain(".ember-media-card__resume { bottom: calc(92px + 0.75rem); }");
-    expect(index).toContain('.catalog-card-shell[data-card-theme="poster"] .catalog-card__resume { bottom: .75rem;');
+  it("keeps resume controls in the footer below artwork without vertical badge strips", () => {
+    expect(index).toContain("bottom: 0.75rem");
+    expect(index).toContain('.catalog-card-shell[data-resumable="true"] .catalog-card__copy');
+    expect(index).toContain('.ember-media-card-shell[data-resumable="true"] .ember-media-card__copy');
+    expect(index).toContain('.catalog-card-shell[data-resumable="true"] .catalog-card[data-card-theme="poster"] .catalog-card__copy');
     expect(index).not.toContain("box-shadow: inset 2px 0 #ff5f1f");
     expect(ember).not.toContain("box-shadow: inset 2px 0 #ff5f1f");
     expect(application).not.toContain("box-shadow: inset 2px 0 #e50914");
