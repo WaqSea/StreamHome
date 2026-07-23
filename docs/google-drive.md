@@ -104,8 +104,6 @@ In the API Library, search for:
 
 `Google Drive API`
 
-<img width="1919" height="1079" alt="Google Cloud API Library search for Google Drive API" src="https://github.com/user-attachments/assets/d410fcf7-98e6-47a3-a24e-f498fc90e3fd" />
-
 Open the result named **Google Drive API**.
 
 <img width="1919" height="1079" alt="Google Drive API result selected in Google Cloud" src="https://github.com/user-attachments/assets/43ab33e6-372e-4367-a358-3e8075e74dec" />
